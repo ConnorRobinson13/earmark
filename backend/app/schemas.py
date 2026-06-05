@@ -6,7 +6,7 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .models import AccountType, FundKind, InboxStatus, TxType
+from .models import AccountType, FundKind, GoalType, InboxStatus, TxType
 
 
 # ---------- Funds ----------
@@ -16,9 +16,12 @@ class FundBase(BaseModel):
     kind: FundKind = FundKind.operational
     target: Optional[Decimal] = None
     target_date: Optional[date] = None
+    goal_type: Optional[GoalType] = None  # set only when kind=goal
     backed_by_account_id: Optional[int] = None
+    min_payment: Optional[Decimal] = None  # debt funds: fixed monthly payment
     sort_order: int = 0
     category: Optional[str] = None
+    due_day: int = Field(default=1, ge=1, le=31)  # day-of-month the bill is due
 
 
 class FundCreate(FundBase):
@@ -30,9 +33,12 @@ class FundUpdate(BaseModel):
     kind: Optional[FundKind] = None
     target: Optional[Decimal] = None
     target_date: Optional[date] = None
+    goal_type: Optional[GoalType] = None
     backed_by_account_id: Optional[int] = None
+    min_payment: Optional[Decimal] = None
     sort_order: Optional[int] = None
     category: Optional[str] = None
+    due_day: Optional[int] = Field(default=None, ge=1, le=31)
     archived: Optional[bool] = None
 
 
@@ -43,6 +49,8 @@ class FundOut(FundBase):
     net_spent_this_month: Decimal = Decimal("0")
     assigned_this_month: Decimal = Decimal("0")
     available_this_month: Decimal = Decimal("0")
+    contribution_ytd: Optional[Decimal] = None    # contribution goals only
+    contribution_year: Optional[int] = None       # contribution goals only
     archived_at: Optional[datetime] = None
 
 
@@ -115,6 +123,13 @@ class AccountCreate(AccountBase):
     pass
 
 
+class AccountUpdate(BaseModel):
+    """All fields optional — PATCH-friendly partial updates."""
+    name: Optional[str] = None
+    type: Optional[AccountType] = None
+    current_balance: Optional[Decimal] = None
+
+
 class AccountOut(AccountBase):
     model_config = ConfigDict(from_attributes=True)
     id: int
@@ -134,6 +149,20 @@ class TemplateApply(BaseModel):
     month: date  # any date in target month
 
 
+# ---------- Paydays ----------
+
+class PaydayCreate(BaseModel):
+    day_of_month: int = Field(ge=1, le=31)
+    amount: Optional[Decimal] = None  # NULL -> even split of planned income
+
+
+class PaydayOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    day_of_month: int
+    amount: Optional[Decimal] = None
+
+
 # ---------- Inbox ----------
 
 class InboxItemOut(BaseModel):
@@ -149,6 +178,7 @@ class InboxItemOut(BaseModel):
 
 class InboxApprove(BaseModel):
     fund_id: Optional[int] = None  # override suggestion
+    as_paycheck: bool = False      # income-only: post as untagged paycheck (no fund)
 
 
 # ---------- Dashboard ----------
@@ -159,8 +189,10 @@ class DashboardOut(BaseModel):
     net_cash: Decimal
     unassigned: Decimal
     funds_total: Decimal       # sum of fund balances at end of month — "left to spend safely"
-    spent_this_month: Decimal  # sum of net_spent across funds for selected month
-    income_this_month: Decimal # sum of untagged income for selected month
+    spent_this_month: Decimal   # net operational outflows (reimbursements offset)
+    saved_this_month: Decimal   # active contributions to goals (excludes bookkeeping)
+    income_this_month: Decimal  # actual untagged income received this month
+    planned_income: Decimal     # target income for this month (EveryDollar-style)
     month: str                 # ISO date of the first day of the selected month
     funds: list[FundOut]
 

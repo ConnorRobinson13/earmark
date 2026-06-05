@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { api, todayISO } from '../api'
+import { useNavigate, useOutletContext } from 'react-router-dom'
+import { api, todayISO, fmt } from '../api'
+import { Icon } from '../components/Icons'
 
 export default function QuickAdd() {
+  const { refresh } = useOutletContext()
   const [funds, setFunds] = useState([])
   const [amount, setAmount] = useState('')
   const [merchant, setMerchant] = useState('')
@@ -18,10 +20,9 @@ export default function QuickAdd() {
 
   useEffect(() => {
     api.funds.list().then(setFunds).catch(e => setErr(String(e)))
-    setTimeout(() => amountRef.current?.focus(), 100)
+    setTimeout(() => amountRef.current?.focus(), 50)
   }, [])
 
-  // debounce suggest on merchant typing
   useEffect(() => {
     clearTimeout(suggestTimer.current)
     if (!merchant.trim() || fundId) return
@@ -49,58 +50,73 @@ export default function QuickAdd() {
         merchant,
         type,
       })
+      refresh()
       nav('/')
     } catch (e) { setErr(String(e)); setBusy(false) }
   }
 
+  function close() { nav('/') }
+
   return (
-    <div>
-      <h1>Quick add</h1>
-      <form className="card stack" onSubmit={submit}>
-        <div className="row" style={{ gap: 8 }}>
-          <button
-            type="button"
-            className={type === 'expense' ? 'primary' : ''}
-            onClick={() => setType('expense')}
-            style={{ flex: 1 }}
-          >− Expense</button>
-          <button
-            type="button"
-            className={type === 'income' ? 'primary' : ''}
-            onClick={() => setType('income')}
-            style={{ flex: 1 }}
-          >+ Income</button>
+    <div className="modal-backdrop" onClick={close}>
+      <form className="modal" onClick={e => e.stopPropagation()} onSubmit={submit}>
+        <div className="row" style={{ marginBottom: 12 }}>
+          <h2 style={{ flex: 1, margin: 0 }}>Quick add</h2>
+          <div className="type-toggle">
+            <button type="button" className={type === 'expense' ? 'active' : ''} onClick={() => setType('expense')}>− Expense</button>
+            <button type="button" className={type === 'income' ? 'active' : ''} onClick={() => setType('income')}>+ Income</button>
+          </div>
         </div>
 
-        <input
-          ref={amountRef}
-          inputMode="decimal"
-          placeholder="Amount"
-          value={amount}
-          onChange={e => setAmount(e.target.value)}
-          style={{ fontSize: 22, fontWeight: 600 }}
-        />
+        <div className="field">
+          <label>Amount</label>
+          <input
+            ref={amountRef}
+            className="amount-input"
+            inputMode="decimal"
+            placeholder="0.00"
+            value={amount}
+            onChange={e => setAmount(e.target.value)}
+          />
+        </div>
 
-        <input
-          placeholder="Merchant / source"
-          value={merchant}
-          onChange={e => setMerchant(e.target.value)}
-        />
+        <div className="field">
+          <label>Merchant / source</label>
+          <input value={merchant} onChange={e => setMerchant(e.target.value)} placeholder="e.g. Trader Joe's" />
+        </div>
 
-        <select value={fundId} onChange={e => { setFundId(e.target.value); setSuggestSrc('') }}>
-          <option value="">Choose fund…</option>
-          {funds.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-        </select>
-        {suggestSrc && (
-          <div className="small muted">Suggested via {suggestSrc}. Change above if wrong.</div>
-        )}
+        <div className="field">
+          <label>Fund</label>
+          <div className="fund-picker" style={{ maxHeight: 120 }}>
+            {funds.map(f => (
+              <button
+                key={f.id}
+                type="button"
+                className={`fund-pill ${String(f.id) === fundId ? 'selected' : ''}`}
+                onClick={() => { setFundId(String(f.id)); setSuggestSrc('') }}
+              >
+                {f.name}
+              </button>
+            ))}
+          </div>
+          {suggestSrc && (
+            <div className="small muted">Auto-picked via {suggestSrc}</div>
+          )}
+        </div>
 
-        <input type="date" value={date} onChange={e => setDate(e.target.value)} />
+        <div className="field">
+          <label>Date</label>
+          <input type="date" value={date} onChange={e => setDate(e.target.value)} />
+        </div>
 
         {err && <div className="bad small">{err}</div>}
-        <button className="primary" disabled={busy || !fundId || !Number(amount)}>
-          Save
-        </button>
+
+        <div className="actions">
+          <button type="button" className="btn ghost" onClick={close}>Cancel</button>
+          <button className="btn primary" disabled={busy || !fundId || !Number(amount)}>
+            {busy ? 'Saving…' : 'Save'}
+          </button>
+        </div>
       </form>
     </div>
   )

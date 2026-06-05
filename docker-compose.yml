@@ -40,13 +40,28 @@ services:
   frontend:
     build: ./frontend
     ports:
-      - "5173:5173"
+      - "5174:5173"
     volumes:
       - ./frontend:/app
       - /app/node_modules
     environment:
       VITE_API_URL: http://localhost:8080
     command: npm run dev -- --host 0.0.0.0
+
+  mcp:
+    build: ./mcp
+    environment:
+      BUDGET_API_URL: http://backend:8000
+      MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:-}
+      MCP_HOST: 0.0.0.0
+      MCP_PORT: 9000
+    ports:
+      - "9000:9000"
+    depends_on:
+      - backend
+    volumes:
+      - ./mcp:/app
+    command: python server.py
 
 volumes:
   postgres_data:

@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     plaid_client_id: str = ""
     plaid_secret: str = ""
     plaid_env: str = "sandbox"
+    plaid_sync_floor_date: str = "2026-05-14"  # ignore Plaid txns dated before this
 
 
 settings = Settings()

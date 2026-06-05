@@ -2,10 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { api, fmt, todayISO } from '../api'
 
 /**
- * Click-to-edit "assigned this month" for a fund.
- * Editing posts an assignment for the delta against Unassigned.
- * `month` is YYYY-MM-01 of the view; assignments date to today if it's the current
- * month, otherwise to the 1st of the selected month (e.g. planning future).
+ * Click-to-edit "assigned this month" for a fund. Renders a single button or
+ * a single input, sized to fill its parent grid cell — no internal label
+ * (the column header in .col-lbl handles that).
  */
 export default function InlineAssigned({ fund, onChange, month, readOnly }) {
   const [editing, setEditing] = useState(false)
@@ -66,40 +65,34 @@ export default function InlineAssigned({ fund, onChange, month, readOnly }) {
     setErr('')
   }
 
-  if (!editing) {
-    if (readOnly) {
-      return (
-        <div className="assigned-btn" style={{ cursor: 'default' }}>
-          <div className="muted small">assigned</div>
-          <div className="assigned-amount">{fmt(current)}</div>
-        </div>
-      )
-    }
+  if (editing) {
     return (
-      <button className="assigned-btn" onClick={() => setEditing(true)} title="Click to edit assignment">
-        <div className="muted small">assigned</div>
-        <div className="assigned-amount">{fmt(current)}</div>
-      </button>
-    )
-  }
-
-  return (
-    <div className="col" style={{ alignItems: 'flex-end' }}>
-      <div className="muted small">assigned</div>
       <input
         ref={inputRef}
-        className="assigned-input"
+        className="assign-edit"
         inputMode="decimal"
         value={value}
         disabled={busy}
         onChange={(e) => setValue(e.target.value.replace(/-/g, ''))}
         onBlur={commit}
+        onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
           if (e.key === 'Enter') commit()
           if (e.key === 'Escape') cancel()
         }}
       />
-      {err && <div className="bad small">{err}</div>}
-    </div>
+    )
+  }
+
+  return (
+    <button
+      className="assign-button"
+      onClick={(e) => { e.stopPropagation(); if (!readOnly) setEditing(true) }}
+      disabled={readOnly}
+      title={readOnly ? 'Past month — read only' : 'Click to edit assignment'}
+    >
+      {current ? fmt(current) : <span style={{ color: 'var(--text-mute)' }}>—</span>}
+      {err && <span className="bad small" style={{ display: 'block' }}>{err}</span>}
+    </button>
   )
 }

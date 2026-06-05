@@ -96,26 +96,11 @@ def copy_assignments(body: CopyAssignmentsBody, db: Session = Depends(get_db)):
         updated += 1
         total_moved += abs(delta)
 
-    # Also copy the income total
-    src_income = untagged_income_in_month(db, src)
-    dst_income = untagged_income_in_month(db, dst)
-    income_delta = src_income - dst_income
-    income_moved = Decimal("0")
-    if income_delta != 0:
-        tx_svc.post_income_signed(
-            db,
-            fund_id=None,
-            amount=income_delta,
-            txn_date=post_date,
-            merchant=f"Income copied from {src.isoformat()}",
-        )
-        income_moved = income_delta
     db.commit()
     return {
         "funds_updated": updated,
         "funds_resurrected": resurrected,
         "total_moved": str(total_moved),
-        "income_delta": str(income_moved),
         "from_month": src.isoformat(),
         "to_month": dst.isoformat(),
     }

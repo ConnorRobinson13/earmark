@@ -15,6 +15,7 @@ async function req(path, opts = {}) {
 
 export const api = {
   dashboard: (month) => req(`/dashboard${month ? `?month=${month}` : ''}`),
+  dashboardTrends: (months = 6) => req(`/dashboard/trends?months=${months}`),
 
   funds: {
     list: (includeArchived = false) => req(`/funds?include_archived=${includeArchived}`),
@@ -54,9 +55,9 @@ export const api = {
 
   inbox: {
     list: () => req('/inbox'),
-    approve: (id, fundId) => req(`/inbox/${id}/approve`, {
+    approve: (id, fundId, asPaycheck = false) => req(`/inbox/${id}/approve`, {
       method: 'POST',
-      body: JSON.stringify({ fund_id: fundId }),
+      body: JSON.stringify({ fund_id: fundId, as_paycheck: asPaycheck }),
     }),
     reject: (id) => req(`/inbox/${id}/reject`, { method: 'POST' }),
     resuggest: (id) => req(`/inbox/${id}/resuggest`, { method: 'POST' }),
@@ -64,13 +65,44 @@ export const api = {
 
   plaid: {
     linkToken: () => req('/plaid/link-token', { method: 'POST' }),
-    exchange: (publicToken) =>
-      req(`/plaid/exchange?public_token=${encodeURIComponent(publicToken)}`, { method: 'POST' }),
+    exchange: (publicToken, institutionName) =>
+      req('/plaid/exchange', {
+        method: 'POST',
+        body: JSON.stringify({ public_token: publicToken, institution_name: institutionName || null }),
+      }),
     sync: () => req('/plaid/sync', { method: 'POST' }),
+    items: () => req('/plaid/items'),
+    unlinkItem: (id) => req(`/plaid/items/${id}`, { method: 'DELETE' }),
   },
 
   admin: {
     resetToSeed: () => req('/admin/reset-to-seed', { method: 'POST' }),
+  },
+
+  networth: () => req('/networth'),
+  networthHistory: () => req('/networth/history'),
+
+  cashflow: (month) => req(`/cashflow${month ? `?month=${month}` : ''}`),
+
+  paydays: {
+    list: () => req('/paydays'),
+    create: (body) => req('/paydays', { method: 'POST', body: JSON.stringify(body) }),
+    delete: (id) => req(`/paydays/${id}`, { method: 'DELETE' }),
+  },
+
+  monthlyMeta: {
+    get: (month) => req(`/monthly-meta/${month}`),
+    set: (month, plannedIncome) => req(`/monthly-meta/${month}`, {
+      method: 'PUT', body: JSON.stringify({ planned_income: plannedIncome }),
+    }),
+  },
+
+  settlements: {
+    pending: (month) => req(`/settlements/pending${month ? `?month=${month}` : ''}`),
+    settle: (goalId, body) => req(`/settlements/goal/${goalId}`, {
+      method: 'POST', body: JSON.stringify(body),
+    }),
+    undo: (id) => req(`/settlements/${id}`, { method: 'DELETE' }),
   },
 
   bulk: {

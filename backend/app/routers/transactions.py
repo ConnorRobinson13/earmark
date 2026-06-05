@@ -1,4 +1,5 @@
 from datetime import date as _date
+from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
@@ -25,6 +26,72 @@ def list_transactions(
     if since is not None:
         q = q.where(Transaction.date >= since)
     return db.scalars(q.limit(limit)).all()
+
+
+@router.get("/search")
+def search_transactions(
+    start: _date | None = Query(None, description="inclusive start date"),
+    end: _date | None = Query(None, description="inclusive end date"),
+    merchant: str | None = Query(None, description="case-insensitive substring match"),
+    fund_id: int | None = None,
+    type: TxType | None = None,
+    min_amount: float | None = Query(None, description="filter on absolute amount"),
+    max_amount: float | None = Query(None, description="filter on absolute amount"),
+    limit: int = Query(200, le=1000),
+    db: Session = Depends(get_db),
+):
+    """Rich transaction search for analytical / conversational queries.
+
+    Returns matching rows plus an aggregate summary (count, sum of signed
+    amounts, sum of outflows, sum of inflows). Amounts are signed: negative =
+    money out of a fund, positive = money in.
+    """
+    from sqlalchemy import func
+
+    q = select(Transaction)
+    if start is not None:
+        q = q.where(Transaction.date >= start)
+    if end is not None:
+        q = q.where(Transaction.date <= end)
+    if merchant:
+        q = q.where(Transaction.merchant.ilike(f"%{merchant}%"))
+    if fund_id is not None:
+        q = q.where(Transaction.fund_id == fund_id)
+    if type is not None:
+        q = q.where(Transaction.type == type)
+    if min_amount is not None:
+        q = q.where(func.abs(Transaction.amount) >= min_amount)
+    if max_amount is not None:
+        q = q.where(func.abs(Transaction.amount) <= max_amount)
+
+    rows = db.scalars(
+        q.order_by(Transaction.date.desc(), Transaction.id.desc()).limit(limit)
+    ).all()
+
+    signed = sum((r.amount for r in rows), start=Decimal("0"))
+    outflow = sum((-r.amount for r in rows if r.amount < 0), start=Decimal("0"))
+    inflow = sum((r.amount for r in rows if r.amount > 0), start=Decimal("0"))
+
+    return {
+        "count": len(rows),
+        "summary": {
+            "net": str(signed),
+            "total_outflow": str(outflow),
+            "total_inflow": str(inflow),
+        },
+        "transactions": [
+            {
+                "id": r.id,
+                "date": r.date.isoformat(),
+                "type": r.type.value,
+                "amount": str(r.amount),
+                "merchant": r.merchant,
+                "notes": r.notes,
+                "fund_id": r.fund_id,
+            }
+            for r in rows
+        ],
+    }
 
 
 @router.post("/quick-add", response_model=schemas.TransactionOut, status_code=201)
