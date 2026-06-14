@@ -11,3 +11,8 @@ dist/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
+
+# personal financial data — never commit
+backups/
+backend/scripts/history_csvs/
+backend/scripts/seed.py

@@ -279,8 +279,14 @@ def goal_pending_settlement(db: Session, goal_id: int, month: date | None = None
 
 
 def all_funds_total(db: Session, as_of: date | None = None) -> Decimal:
-    q = select(func.coalesce(func.sum(Transaction.amount), 0)).where(
-        Transaction.fund_id.is_not(None)
+    # Only money sitting in *active* funds counts toward the headline. Archived
+    # funds are excluded: real ones sweep to 0 on archive (no effect), and the
+    # hidden "[History]" funds holding imported EveryDollar history must never
+    # distort current state.
+    q = (
+        select(func.coalesce(func.sum(Transaction.amount), 0))
+        .join(Fund, Fund.id == Transaction.fund_id)
+        .where(Fund.archived_at.is_(None))
     )
     if as_of is not None:
         q = q.where(Transaction.date <= as_of)
