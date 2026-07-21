@@ -1,5 +1,14 @@
 # Ledger — fund-based budgeting
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-black.svg)](LICENSE)
+![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
+![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
+![Postgres](https://img.shields.io/badge/Postgres-16_+_pgvector-4169E1?logo=postgresql&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
+![PWA](https://img.shields.io/badge/PWA-installable-5A0FC8?logo=pwa&logoColor=white)
+![MCP](https://img.shields.io/badge/MCP-talk_to_your_money-C15F3C)
+
 A self-hosted budgeting app built around **funds** (envelopes) instead of
 monthly line items. It's a personal replacement for EveryDollar/YNAB that keeps
 the parts of zero-based budgeting that work, drops the monthly-reset busywork,
