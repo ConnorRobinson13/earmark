@@ -17,6 +17,10 @@ your money.
 
 Runs entirely on your own machine with Docker.
 
+![Dashboard](docs/dashboard.png)
+
+Spin it up in three commands:
+
 ![Quickstart](docs/quickstart.gif)
 
 > **Heads up:** this is a single-user app with **no login**. Run it locally.
