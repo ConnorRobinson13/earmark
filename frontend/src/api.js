@@ -82,8 +82,6 @@ export const api = {
   networth: () => req('/networth'),
   networthHistory: () => req('/networth/history'),
 
-  cashflow: (month) => req(`/cashflow${month ? `?month=${month}` : ''}`),
-
   paydays: {
     list: () => req('/paydays'),
     create: (body) => req('/paydays', { method: 'POST', body: JSON.stringify(body) }),

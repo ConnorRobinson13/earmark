@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { NavLink, Route, Routes, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { NavLink, Route, Routes, Navigate, Outlet, useNavigate, useLocation } from 'react-router-dom'
 import Dashboard from './views/Dashboard'
 import QuickAdd from './views/QuickAdd'
 import Inbox from './views/Inbox'
@@ -8,10 +8,9 @@ import Planner from './views/Planner'
 import FundDetail from './views/FundDetail'
 import Settings from './views/Settings'
 import NetWorth from './views/NetWorth'
-import CashFlow from './views/CashFlow'
-import { fmt } from './api'
 import { thisMonth, monthLabel, shiftMonth } from './components/MonthSelector'
 import { Icon } from './components/Icons'
+import { fmt } from './api'
 
 export default function App() {
   return (
@@ -23,7 +22,6 @@ export default function App() {
         <Route path="/inbox" element={<Inbox />} />
         <Route path="/goals" element={<Goals />} />
         <Route path="/planner" element={<Planner />} />
-        <Route path="/cashflow" element={<CashFlow />} />
         <Route path="/networth" element={<NetWorth />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="*" element={<Navigate to="/" replace />} />
@@ -43,7 +41,7 @@ function Shell() {
 
   return (
     <div className="app">
-      <Sidebar inboxCount={inboxCount} />
+      <NavDock inboxCount={inboxCount} />
       <main className="main">
         <Topbar month={month} setMonth={setMonth} unassigned={unassigned} />
         <div className="main-inner">
@@ -54,55 +52,56 @@ function Shell() {
   )
 }
 
-function Sidebar({ inboxCount }) {
+function NavDock({ inboxCount }) {
   const items = [
     { to: '/',         label: 'Dashboard', icon: 'home'  },
     { to: '/inbox',    label: 'Inbox',     icon: 'inbox', badge: inboxCount || null },
     { to: '/goals',    label: 'Goals',     icon: 'flag'  },
     { to: '/planner',  label: 'Planner',   icon: 'plan'  },
-    { to: '/cashflow', label: 'Cash flow', icon: 'wave'  },
     { to: '/networth', label: 'Net worth', icon: 'spark' },
-    { to: '/settings', label: 'Settings',  icon: 'cog'   },
   ]
   return (
-    <aside className="sidebar">
-      <nav>
-        {items.map(it => (
-          <NavLink key={it.to} to={it.to} end={it.to === '/'}
-            className={({ isActive }) => `navitem ${isActive ? 'active' : ''}`}
-          >
-            <Icon name={it.icon} />
-            <span>{it.label}</span>
-            {it.badge ? <span className="badge">{it.badge}</span> : null}
-          </NavLink>
-        ))}
-      </nav>
-    </aside>
+    <nav className="dock">
+      <img className="dock-mark" src="/assets/ronin-logomark-light.png" alt="Ronin Systems" />
+      <span className="dock-div" />
+      {items.map(it => (
+        <NavLink key={it.to} to={it.to} end={it.to === '/'}
+          className={({ isActive }) => `dockitem ${isActive ? 'active' : ''}`}
+        >
+          <Icon name={it.icon} />
+          <span>{it.label}</span>
+          {it.badge ? <span className="badge">{it.badge}</span> : null}
+        </NavLink>
+      ))}
+      <span className="dock-div" />
+      <NavLink to="/settings" aria-label="Settings"
+        className={({ isActive }) => `dockitem icon-only ${isActive ? 'active' : ''}`}
+      >
+        <Icon name="cog" />
+      </NavLink>
+    </nav>
   )
 }
 
-const ROUTE_TITLES = {
-  '/':         'Dashboard',
-  '/inbox':    'Inbox',
-  '/goals':    'Goals',
-  '/planner':  'Planner',
-  '/cashflow': 'Cash flow',
-  '/networth': 'Net worth',
-  '/settings': 'Settings',
-  '/quick-add':'Quick add',
-}
-
 function Topbar({ month, setMonth, unassigned }) {
-  const { pathname } = useLocation()
   const nav = useNavigate()
-  const title = ROUTE_TITLES[pathname] || (pathname.startsWith('/funds/') ? 'Fund' : 'Ledger')
   const isCurrent = month === thisMonth()
+
+  const onDashboard = useLocation().pathname === '/'
+  const u = Number(unassigned)
+  const showChip = onDashboard && unassigned != null && Number.isFinite(u)
+  const tone = Math.abs(u) < 0.01 ? 'zero' : u > 0 ? 'pos' : 'neg'
 
   return (
     <div className="topbar">
-      <div className="crumb">{title}</div>
+      {showChip ? (
+        <div className={`uchip ${tone}`} title="Money left to assign this month">
+          <span className="dot" />
+          <span className="eyebrow">Unassigned</span>
+          <span className="amt">{fmt(u)}</span>
+        </div>
+      ) : null}
       <div className="spacer" />
-      {unassigned !== null && <UnassignedChip value={unassigned} />}
       <div className="monthsw">
         <button onClick={() => setMonth(shiftMonth(month, -1))} aria-label="Previous month">
           <Icon name="chev_l" />
@@ -115,22 +114,9 @@ function Topbar({ month, setMonth, unassigned }) {
           <Icon name="chev_r" />
         </button>
       </div>
-      <button className="iconbtn primary" title="Quick add (n)" onClick={() => nav('/quick-add')}>
-        <Icon name="plus" />
+      <button className="btn sm primary" title="Quick add (n)" onClick={() => nav('/quick-add')}>
+        <Icon name="plus" /> Quick add
       </button>
-    </div>
-  )
-}
-
-function UnassignedChip({ value }) {
-  const n = Number(value)
-  const tone = Math.abs(n) < 0.01 ? 'zero' : n > 0 ? 'pos' : 'neg'
-  const label = tone === 'zero' ? 'Fully assigned' : tone === 'pos' ? 'Unassigned' : 'Overbudget'
-  return (
-    <div className={`uchip ${tone}`}>
-      <span className="dot" />
-      <span style={{ color: 'var(--text-dim)' }}>{label}</span>
-      <span className="amt">{fmt(n)}</span>
     </div>
   )
 }

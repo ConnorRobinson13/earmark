@@ -50,11 +50,14 @@ export default function NetWorth() {
   const monthlyNeeds = useMemo(() => {
     if (!dash) return 0
     return dash.funds
-      .filter(f => f.kind === 'operational')
       .filter(f => {
+        // The car loan is a debt you can't walk away from in an emergency, so
+        // count it even though it's modeled as a goal, not an operational fund.
+        const carPayment = /car loan|car payment/i.test(f.name)
+        if (f.kind !== 'operational' && !carPayment) return false
         const scheduledBill = (f.category === 'Housing' || f.due_day !== 1) && f.category !== 'Subscriptions'
         const groceries = /grocer/i.test(f.name)
-        return scheduledBill || groceries
+        return scheduledBill || groceries || carPayment
       })
       .reduce((s, f) => s + Number(f.assigned_this_month || 0), 0)
   }, [dash])
@@ -145,7 +148,7 @@ export default function NetWorth() {
         <div className="card runway-card">
           <div>
             <div className="eyebrow">Emergency runway</div>
-            <div className="sub">{fmt(emergency)} ÷ {fmt(monthlyNeeds)}/mo needs (fixed bills + groceries)</div>
+            <div className="sub">{fmt(emergency)} ÷ {fmt(monthlyNeeds)}/mo needs (fixed bills + groceries + car payment)</div>
           </div>
           <div className="runway-num">
             <span className={`big ${emergency / monthlyNeeds < 3 ? 'warn' : 'good'}`}>

@@ -5,71 +5,61 @@
    ========================================================== */
 
 :root {
-  --bg:        #0b0c0e;
-  --bg-2:      #0e1014;
-  --surface:   #14161c;
-  --surface-2: #1b1e26;
-  --surface-3: #232732;
-  --border:    #262a35;
-  --border-2:  #313646;
-  --hairline:  #1f2330;
+  /* RONIN SYSTEMS — Budget Console: ink ramp, crimson accent,
+     Hanken Grotesk body / Syne display / JetBrains Mono figures. */
+  --bg:        #080809;   /* ink-950 — app backdrop */
+  --bg-2:      #0d0d0f;   /* ink-900 — base surface / topbar / drawer */
+  --surface:   #1c1c22;   /* ink-800 — raised card surface */
+  --surface-2: #131318;   /* ink-850 — inset / input field */
+  --surface-3: #24242b;   /* ink-700 */
+  --border:    #2a2a30;   /* ink-600 — strong border */
+  --border-2:  #33333a;
+  --hairline:  #26262d;   /* visible card hairline */
 
-  --text:      #ecedf0;
-  --text-2:    #c4c6cd;
-  --text-dim:  #7a7e8a;
-  --text-mute: #5a5d68;
+  --text:      #efefef;   /* ash-100 — primary */
+  --text-2:    #8a8a92;   /* ink-200 — secondary */
+  --text-dim:  #58585e;   /* ink-300 — muted */
+  --text-mute: #484850;   /* ink-400 — faint */
 
-  --good:      #6fdc9b;
-  --good-dim:  #2f6a4a;
-  --bad:       #ff7e7e;
-  --bad-dim:   #6b3030;
-  --warn:      #f0b86b;
+  --good:      #2fb67c;   /* emerald — positive / income */
+  --good-dim:  rgba(47,182,124,.12);
+  --bad:       #cc2936;   /* crimson — negative / overbudget */
+  --bad-dim:   rgba(204,41,54,.12);
+  --warn:      #e0a03c;   /* amber */
 
-  --accent:     #c4e360;
-  --accent-2:   #9fc340;
-  --accent-ink: #17220a;
-  --accent-fade:#242a17;
+  --accent:     #cc2936;
+  --accent-2:   #e14250;
+  --accent-ink: #ffffff;
+  --accent-fade: rgba(204,41,54,.12);   /* accent-soft */
+  --accent-border: rgba(204,41,54,.30); /* accent-soft-border */
 
-  --r-sm: 6px;
-  --r-md: 10px;
-  --r-lg: 14px;
-  --r-xl: 20px;
+  --r-sm: 0px;
+  --r-md: 0px;
+  --r-lg: 0px;
+  --r-xl: 0px;
 
-  --shadow-1: 0 1px 0 rgba(255,255,255,.02) inset, 0 1px 2px rgba(0,0,0,.4);
-  --shadow-2: 0 1px 0 rgba(255,255,255,.03) inset, 0 8px 24px rgba(0,0,0,.4);
+  --shadow-1: 0 1px 0 rgba(255,255,255,.02) inset, 0 1px 2px rgba(0,0,0,.5);
+  --shadow-2: 0 1px 0 rgba(255,255,255,.04) inset, 0 18px 48px rgba(0,0,0,.55);
 
-  --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-mono: "Geist Mono", ui-monospace, "JetBrains Mono", monospace;
-  --font-display: "Newsreader", "Geist", serif;
-  --font-num: "Newsreader", "Geist Mono", serif;
+  --font-sans: "Hanken Grotesk", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-display: "Syne", "Hanken Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-num: "JetBrains Mono", ui-monospace, monospace;
 
-  --letter-display: -0.015em;
-  --letter-body:    -0.005em;
-  --letter-eyebrow:  0.08em;
+  --letter-display: -0.02em;
+  --letter-body:    0.004em;
+  --letter-eyebrow:  0.2em;
 
   --pad-card: 18px;
   --pad-row:  14px 16px;
   --row-gap:  2px;
-  --section-gap: 24px;
+  --section-gap: 28px;
 }
 
-/* Editorial-mode palette overrides */
-html[data-mode="editorial"] {
-  --bg:        #0a0a0c;
-  --bg-2:      #0d0d10;
-  --surface:   #131316;
-  --surface-2: #1b1b1f;
-  --border:    #25252a;
-  --hairline:  #1d1d22;
-  --text:      #f1ede4;
-  --text-2:    #c8c2b5;
-  --text-dim:  #7e7868;
-  --text-mute: #5a5546;
-  --r-sm: 2px;
-  --r-md: 3px;
-  --r-lg: 4px;
-  --r-xl: 6px;
-}
+/* ─── ACCENT: crimson family ─── */
+[data-accent="crimson"] { --accent:#cc2936; --accent-2:#e0414e; --accent-ink:#ffffff; --accent-fade:#261216; }
+[data-accent="oxblood"] { --accent:#a21f2a; --accent-2:#c0303c; --accent-ink:#ffffff; --accent-fade:#200f12; }
+[data-accent="signal"]  { --accent:#e63946; --accent-2:#f45561; --accent-ink:#ffffff; --accent-fade:#2a1316; }
 
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
@@ -96,9 +86,7 @@ html[data-mode="editorial"] .num { font-feature-settings: "lnum","tnum"; font-we
    ============================================================ */
 
 .app {
-  display: grid;
-  grid-template-columns: 240px 1fr;
-  grid-template-rows: 100vh;
+  display: block;
   min-height: 100vh;
   background: var(--bg);
 }
@@ -149,24 +137,23 @@ html[data-mode="editorial"] .num { font-feature-settings: "lnum","tnum"; font-we
   font-family: var(--font-sans);
 }
 
-/* MAIN */
+/* MAIN — page scrolls on the body so the sticky topbar pins to the viewport */
 .main {
-  overflow-y: auto;
   padding: 0;
 }
 .main-inner {
   max-width: 1240px;
   margin: 0 auto;
-  padding: 28px 40px 80px;
+  padding: 28px 40px 140px;
 }
 
 /* TOPBAR */
 .topbar {
   display: flex; align-items: center; gap: 16px;
   padding: 16px 40px;
-  border-bottom: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--border);
   position: sticky; top: 0;
-  background: rgba(11, 12, 14, 0.85);
+  background: var(--bg-2);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   z-index: 20;
@@ -1301,3 +1288,121 @@ textarea { height: auto; padding: 10px 12px; }
 .payday-row { display: flex; align-items: center; gap: 10px; }
 .payday-row .pd-day { width: 72px; }
 .payday-row .pd-amt { width: 120px; }
+
+/* ============================================================
+   RONIN SYSTEMS — mode overrides (Syne words / JetBrains-Mono figures),
+   floating nav dock, top-bar brand lockup, centered month switcher.
+   Appended last so these win over the base rules above.
+   ============================================================ */
+[data-mode="ronin"] .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+
+/* Budget Console is uniformly sharp-cornered. Square everything; slider
+   thumbs use ::-webkit pseudo-elements so they stay round on their own. */
+[data-mode="ronin"] *,
+[data-mode="ronin"] *::before,
+[data-mode="ronin"] *::after { border-radius: 0 !important; }
+
+/* Figures → mono, words/headings stay Syne */
+[data-mode="ronin"] .hero-unassigned .big-num { font-family: var(--font-num); font-weight: 600; font-size: 60px; letter-spacing: -0.02em; }
+[data-mode="ronin"] .hero-unassigned .big-num.good { color: var(--text); }
+[data-mode="ronin"] .hero-unassigned .big-num.warn { color: var(--accent); }
+[data-mode="ronin"] .hero-unassigned .big-num.bad  { color: var(--accent); }
+[data-mode="ronin"] .hero-tile .num-big { font-family: var(--font-num); font-weight: 600; }
+[data-mode="ronin"] .metric-row .val { font-family: var(--font-num); font-weight: 700; font-size: 18px; }
+[data-mode="ronin"] .fund-row .assigned,
+[data-mode="ronin"] .fund-row .balance,
+[data-mode="ronin"] .fund-row .assign-button,
+[data-mode="ronin"] .fund-row .assign-edit { font-family: var(--font-num); font-weight: 600; font-size: 14.5px; }
+[data-mode="ronin"] .goal-card .amount-row .big { font-family: var(--font-num); font-weight: 600; }
+[data-mode="ronin"] .goal-card .name { font-weight: 600; }
+[data-mode="ronin"] .fd-hero .stat .val,
+[data-mode="ronin"] .plan-sticky .big,
+[data-mode="ronin"] .amount-input,
+[data-mode="ronin"] .tx-row .amount,
+[data-mode="ronin"] .acct-card .bal,
+[data-mode="ronin"] .txcard .amount { font-family: var(--font-num); font-weight: 600; }
+/* real-app figures that used the display font */
+[data-mode="ronin"] .tomove-head .amt,
+[data-mode="ronin"] .tomove-row .amt,
+[data-mode="ronin"] .runway-num .big,
+[data-mode="ronin"] .cf-bal,
+[data-mode="ronin"] .cf-date .cf-dn { font-family: var(--font-num); font-weight: 600; }
+
+/* Headings */
+[data-mode="ronin"] .sec-head h2 { font-weight: 700; }
+[data-mode="ronin"] .card .hd h3 { font-weight: 600; font-style: normal; }
+[data-mode="ronin"] .topbar .crumb { font-weight: 700; font-size: 19px; letter-spacing: -0.01em; font-style: normal; }
+[data-mode="ronin"] .eyebrow { font-size: 10px; letter-spacing: 0.2em; font-weight: 600; color: var(--text-dim); }
+
+/* Brand lockup (in the top bar) */
+.topbar .brand { display: flex; align-items: center; gap: 11px; }
+.topbar .brand .mark { width: 42px; height: 42px; object-fit: contain; background: transparent; display: block; }
+.topbar .brand .wordmark { display: flex; flex-direction: column; }
+.topbar .brand .wm-name { font-family: var(--font-display); font-weight: 700; font-size: 16px; letter-spacing: -0.01em; color: var(--text); line-height: 1; }
+.topbar .brand .wm-by { font-size: 8px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent); font-weight: 600; margin-top: 5px; }
+
+/* Centered, larger month switcher (topbar is sticky → anchors absolute child) */
+.topbar .monthsw {
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  height: 44px;
+  border-radius: var(--r-md);
+}
+.topbar .monthsw .label {
+  font-family: var(--font-display);
+  font-size: 16px; font-weight: 600;
+  min-width: 180px; padding: 0 22px; letter-spacing: 0.01em;
+}
+.topbar .monthsw button { padding: 0 14px; }
+.topbar .monthsw button svg { width: 17px; height: 17px; }
+
+/* Floating nav dock — rectangular, centered at the bottom of the page */
+.dock {
+  position: fixed;
+  bottom: 22px; left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  display: flex; align-items: center; gap: 3px;
+  padding: 6px;
+  background: rgba(19,19,24,.92);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: var(--shadow-2);
+  max-width: calc(100vw - 24px);
+  overflow-x: auto;
+}
+.dock .dock-mark { height: 24px; margin: 0 8px 0 6px; flex: none; display: block; }
+.dock .dock-div { width: 1px; height: 26px; background: var(--border); margin: 0 4px; flex: none; }
+.dock .dockitem {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 14px;
+  color: var(--text-dim);
+  font-family: var(--font-sans);
+  font-size: 13px; font-weight: 500;
+  white-space: nowrap;
+  position: relative;
+  transition: color .12s, background .12s;
+}
+.dock .dockitem .ico { width: 17px; height: 17px; opacity: .9; position: relative; }
+.dock .dockitem span { position: relative; }
+.dock .dockitem:hover { color: var(--text-2); background: rgba(255,255,255,.05); }
+.dock .dockitem.active { color: var(--text); background: var(--accent-fade); }
+.dock .dockitem.active::after {
+  content: ""; position: absolute; left: 8px; right: 8px; bottom: 0;
+  height: 2px; background: var(--accent);
+}
+.dock .dockitem.active .ico { opacity: 1; }
+.dock .dockitem.icon-only { padding: 9px 12px; }
+.dock .dockitem .badge {
+  background: var(--accent-fade); color: var(--accent-2);
+  border: 1px solid var(--accent-border);
+  font-family: var(--font-num); font-size: 11px; font-weight: 500;
+  padding: 1px 6px; margin-left: 2px; position: relative;
+}
+
+@media (max-width: 900px) {
+  .dock .dockitem span:not(.badge) { display: none; }
+  .dock .dockitem { padding: 10px 12px; }
+}
