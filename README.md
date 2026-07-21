@@ -17,6 +17,8 @@ your money.
 
 Runs entirely on your own machine with Docker.
 
+![Quickstart](docs/quickstart.gif)
+
 > **Heads up:** this is a single-user app with **no login**. Run it locally.
 > See [SECURITY.md](SECURITY.md) before you expose it anywhere.
 
