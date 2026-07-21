@@ -66,7 +66,7 @@ async def lifespan(_app: FastAPI):
         sched.shutdown(wait=False)
 
 
-app = FastAPI(title="Budget App", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Earmark", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

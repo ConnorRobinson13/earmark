@@ -1,4 +1,4 @@
-# Ledger — fund-based budgeting
+# Earmark — fund-based budgeting
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-black.svg)](LICENSE)
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)

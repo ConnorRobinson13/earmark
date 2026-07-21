@@ -1,4 +1,4 @@
-"""Budget App MCP server — "talk to your money".
+"""Earmark MCP server — "talk to your money".
 
 Wraps the budget-app FastAPI (never the DB directly) so all the EveryDollar-style
 balance math, paired-transaction safety, and goal/settlement logic stay in one

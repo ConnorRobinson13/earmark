@@ -77,7 +77,7 @@ def create_link_token():
 
     req = LinkTokenCreateRequest(
         user=LinkTokenCreateRequestUser(client_user_id="budget-app-local"),
-        client_name="Budget App",
+        client_name="Earmark",
         products=[Products("transactions")],
         country_codes=[CountryCode("US")],
         language="en",

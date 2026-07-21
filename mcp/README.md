@@ -1,4 +1,4 @@
-# Budget App MCP Server — "talk to your money"
+# Earmark MCP Server — "talk to your money"
 
 A Streamable-HTTP MCP server that wraps the budget-app API. It never touches
 Postgres directly — every tool calls the FastAPI backend so the EveryDollar-style
