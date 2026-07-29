@@ -25,10 +25,30 @@ docker compose exec backend alembic upgrade head
 ```
 
 - Backend: FastAPI, auto-reloads on save (code is bind-mounted).
+- The daily 06:00 Plaid sync is opt-in via `ENABLE_SCHEDULER=1`, which compose
+  sets for you. Running the backend outside compose leaves it off — set it
+  yourself if you want the cron job.
 - Frontend: Vite dev server, hot-reloads.
 - DB migrations: Alembic. Add one with
   `docker compose exec backend alembic revision -m "what changed"` and edit the
   generated file under `backend/alembic/versions/`.
+
+## Tests
+
+The backend test suite stands up its own throwaway pgvector database, so it
+doesn't need — and won't touch — the compose stack. It needs Docker running and
+nothing else:
+
+```bash
+cd backend
+pip install -r requirements-dev.txt
+pytest
+```
+
+If you'd rather point it at a database you already have, set
+`TEST_DATABASE_URL`. The suite creates the schema and **truncates every table
+between tests**, so give it a database of its own — never the one behind
+`docker compose` on port 5433.
 
 ## Style
 

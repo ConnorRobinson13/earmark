@@ -20,6 +20,7 @@ services:
     build: ./backend
     environment:
       DATABASE_URL: postgresql+psycopg://budget:budget@postgres:5432/budget
+      ENABLE_SCHEDULER: "1"   # daily Plaid sync at 06:00 — opt-in, see app/main.py
       OLLAMA_URL: http://host.docker.internal:11434
       EMBEDDING_MODEL: mxbai-embed-large
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}

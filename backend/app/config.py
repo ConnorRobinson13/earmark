@@ -6,8 +6,9 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+psycopg://budget:budget@postgres:5432/budget"
     ollama_url: str = "http://host.docker.internal:11434"
+    # Swapping this needs a matching `constants.EMBEDDING_DIM` and a migration:
+    # the vector width is baked into the transactions table.
     embedding_model: str = "mxbai-embed-large"
-    embedding_dim: int = 1024  # mxbai-embed-large dimensionality
 
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-sonnet-4-6"

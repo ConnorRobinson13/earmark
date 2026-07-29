@@ -20,7 +20,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from .config import settings
+from .constants import EMBEDDING_DIM
 from .db import Base
 
 
@@ -130,7 +130,7 @@ class Transaction(Base):
         ForeignKey("transactions.id"), nullable=True
     )
     embedding: Mapped[Optional[list[float]]] = mapped_column(
-        Vector(settings.embedding_dim), nullable=True
+        Vector(EMBEDDING_DIM), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

@@ -48,7 +48,7 @@ sys.path.insert(0, "/app")
 
 from sqlalchemy import select  # noqa: E402
 
-from app.db import SessionLocal  # noqa: E402
+from app.db import new_session  # noqa: E402
 from app.models import Fund, FundKind, Transaction, TxType  # noqa: E402
 
 DATA_DIR = Path(__file__).parent / "history_csvs"
@@ -139,7 +139,7 @@ def print_report(rows, groups, per_month, income_total):
 
 
 def commit(rows, groups):
-    db = SessionLocal()
+    db = new_session()
     try:
         existing = db.scalars(
             select(Fund).where(Fund.name.like(HIST_PREFIX + "%"))

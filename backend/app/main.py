@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .db import SessionLocal
+from .db import new_session
 from .routers import (
     accounts,
     admin,
@@ -30,7 +30,7 @@ log = logging.getLogger(__name__)
 def _daily_sync_job():
     """Pull Plaid transactions + refresh balances. Scheduled at 06:00 local."""
     from .routers.plaid import run_sync  # local import — keep startup light
-    db = SessionLocal()
+    db = new_session()
     try:
         added = run_sync(db)
         log.info("daily sync: added %d transactions", added)
@@ -42,8 +42,11 @@ def _daily_sync_job():
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    # Skip scheduler in test/CI runs to avoid spurious cron threads
-    if os.environ.get("DISABLE_SCHEDULER") == "1":
+    # Opt-in: the compose stack sets ENABLE_SCHEDULER=1. Anywhere else — tests,
+    # scripts, a local uvicorn — constructing the app must not start a cron
+    # thread that would go hunting for Plaid credentials at 06:00.
+    if os.environ.get("ENABLE_SCHEDULER") != "1":
+        log.info("scheduler disabled (set ENABLE_SCHEDULER=1 to enable)")
         yield
         return
     from apscheduler.schedulers.background import BackgroundScheduler
