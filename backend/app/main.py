@@ -2,10 +2,12 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from .db import new_session
+from .month import InvalidMonth
 from .routers import (
     accounts,
     admin,
@@ -70,6 +72,17 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="Earmark", version="0.1.0", lifespan=lifespan)
+
+
+@app.exception_handler(InvalidMonth)
+def _invalid_month(_request: Request, exc: InvalidMonth) -> JSONResponse:
+    """One 400 for an unreadable month, wherever it was read.
+
+    Registered centrally so no router carries its own try/except — that is what
+    let six copies of the parse block drift apart in the first place.
+    """
+    return JSONResponse(status_code=400, content={"detail": str(exc)})
+
 
 app.add_middleware(
     CORSMiddleware,

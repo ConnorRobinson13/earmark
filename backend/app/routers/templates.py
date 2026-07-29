@@ -1,5 +1,3 @@
-from datetime import date
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -7,6 +5,7 @@ from sqlalchemy.orm import Session
 from .. import schemas
 from ..db import get_db
 from ..models import MonthlyTemplate
+from ..month import parse_month
 from ..services import transactions as tx_svc
 
 router = APIRouter(prefix="/templates", tags=["templates"])
@@ -34,7 +33,7 @@ def apply_template(body: schemas.TemplateApply, db: Session = Depends(get_db)):
     items = db.scalars(select(MonthlyTemplate)).all()
     if not items:
         raise HTTPException(400, "no template configured")
-    target = body.month.replace(day=1)
+    target = parse_month(body.month)
     applied = 0
     for it in items:
         tx_svc.post_assignment(

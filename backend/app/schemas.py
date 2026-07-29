@@ -146,7 +146,7 @@ class TemplateItem(BaseModel):
 
 
 class TemplateApply(BaseModel):
-    month: date  # any date in target month
+    month: str  # YYYY-MM or YYYY-MM-DD — read by app.month.parse_month
 
 
 # ---------- Paydays ----------

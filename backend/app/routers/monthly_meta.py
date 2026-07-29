@@ -2,14 +2,14 @@
 from datetime import date
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..db import get_db
 from ..models import MonthlyMeta
-from ..services.balances import month_bounds
+from ..month import parse_month
 
 router = APIRouter(prefix="/monthly-meta", tags=["monthly-meta"])
 
@@ -23,16 +23,9 @@ class MonthlyMetaPatch(BaseModel):
     planned_income: Decimal
 
 
-def _parse_month(s: str) -> date:
-    try:
-        return date.fromisoformat(s + "-01" if len(s) == 7 else s)
-    except ValueError:
-        raise HTTPException(400, "month must be YYYY-MM or YYYY-MM-DD")
-
-
 @router.get("/{month}", response_model=MonthlyMetaOut)
 def get_meta(month: str, db: Session = Depends(get_db)):
-    first, _ = month_bounds(_parse_month(month))
+    first = parse_month(month)
     row = db.get(MonthlyMeta, first)
     if row is None:
         return MonthlyMetaOut(month=first, planned_income=Decimal("0"))
@@ -41,7 +34,7 @@ def get_meta(month: str, db: Session = Depends(get_db)):
 
 @router.put("/{month}", response_model=MonthlyMetaOut)
 def upsert_meta(month: str, body: MonthlyMetaPatch, db: Session = Depends(get_db)):
-    first, _ = month_bounds(_parse_month(month))
+    first = parse_month(month)
     row = db.get(MonthlyMeta, first)
     if row is None:
         row = MonthlyMeta(month=first, planned_income=body.planned_income)

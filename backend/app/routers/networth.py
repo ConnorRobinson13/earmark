@@ -1,5 +1,4 @@
 """Net worth: current snapshot across all accounts + monthly history."""
-from datetime import date
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends
@@ -8,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from ..db import get_db
 from ..models import Account, Fund, FundKind, GoalType, NetWorthSnapshot
+from ..month import current_month
 from ..services.balances import fund_balance
 
 router = APIRouter(prefix="/networth", tags=["networth"])
@@ -68,7 +68,7 @@ def _compute(db: Session) -> dict:
 
 def _upsert_snapshot(db: Session, vals: dict) -> None:
     """Idempotently store this month's snapshot (keyed by first-of-month)."""
-    month = date.today().replace(day=1)
+    month = current_month()
     snap = db.get(NetWorthSnapshot, month)
     if snap is None:
         snap = NetWorthSnapshot(month=month)

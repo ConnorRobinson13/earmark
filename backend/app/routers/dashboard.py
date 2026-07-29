@@ -1,20 +1,26 @@
-from datetime import date, timedelta
+from datetime import date
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .. import schemas
 from ..db import get_db
 from ..models import Account, AccountType, Fund
+from ..month import (
+    current_month,
+    last_day_of_month,
+    next_month,
+    parse_month_or_current,
+    previous_month,
+)
 from ..services.balances import (
     all_funds_total,
     enrich_fund,
     goals_saved_in_month,
     gross_spent_in_month,
     liquid_cash,
-    month_bounds,
     planned_income_for_month,
     spend_by_category_in_month,
     unassigned_balance,
@@ -30,12 +36,11 @@ def dashboard_trends(
     db: Session = Depends(get_db),
 ):
     """Net spend by category for each of the last `months` months (oldest→newest)."""
-    cur_first, _ = month_bounds(date.today())
     month_starts: list[date] = []
-    m = cur_first
+    m = current_month()
     for _ in range(months):
         month_starts.append(m)
-        m = (m - timedelta(days=1)).replace(day=1)  # step back one month
+        m = previous_month(m)
     month_starts.reverse()
 
     categories: set[str] = set()
@@ -56,15 +61,9 @@ def dashboard(
     month: str | None = Query(None, description="YYYY-MM or YYYY-MM-DD; defaults to current month"),
     db: Session = Depends(get_db),
 ):
-    if month:
-        try:
-            month_date = date.fromisoformat(month + "-01" if len(month) == 7 else month)
-        except ValueError:
-            raise HTTPException(400, "month must be YYYY-MM or YYYY-MM-DD")
-    else:
-        month_date = date.today()
-    month_first, nxt = month_bounds(month_date)
-    as_of = nxt - timedelta(days=1)
+    month_first = parse_month_or_current(month)
+    nxt = next_month(month_first)
+    as_of = last_day_of_month(month_first)
     # liquid cash = checking + savings; credit cards = what you owe.
     # "liquid" = money available for general spending. Emergency fund and
     # investments are excluded — they're earmarked / long-term.

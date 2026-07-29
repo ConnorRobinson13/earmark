@@ -8,16 +8,26 @@ underlying data.
 A fund's balance is the signed sum of all its transactions through `as_of`
 (inclusive). For a past month view we pass as_of = last day of that month so
 the balance reflects a historical snapshot.
+
+Month arithmetic — bounds, last day, day clamping — lives in `app.month`; this
+module only uses it.
 """
 from __future__ import annotations
 
-from calendar import monthrange
 from datetime import date, timedelta
 from decimal import Decimal
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from ..month import (
+    clamp_day_to_month,
+    current_month,
+    first_of_month,
+    last_day_of_month,
+    month_bounds,
+    next_month,
+)
 from ..models import (
     Account,
     AccountType,
@@ -27,28 +37,6 @@ from ..models import (
     PaydaySchedule,
     Transaction,
 )
-
-
-def month_bounds(d: date) -> tuple[date, date]:
-    """Return (first_of_month, first_of_next_month) — last is exclusive upper bound."""
-    first = d.replace(day=1)
-    if first.month == 12:
-        nxt = first.replace(year=first.year + 1, month=1)
-    else:
-        nxt = first.replace(month=first.month + 1)
-    return first, nxt
-
-
-def days_in_month(d: date) -> int:
-    """Number of days in the month containing `d`."""
-    return monthrange(d.year, d.month)[1]
-
-
-def clamp_day_to_month(day: int, d: date) -> date:
-    """Return the date in `d`'s month for day-of-month `day`, clamped to the
-    month length (e.g. day=31 in February -> the 28th/29th)."""
-    first, _ = month_bounds(d)
-    return first.replace(day=min(day, days_in_month(first)))
 
 
 def liquid_cash(db: Session) -> Decimal:
@@ -322,8 +310,8 @@ def project_cashflow(db: Session, month: date | None = None) -> dict:
     entry per day (1st → last) so the UI can render a stacked card per day.
     """
     today = date.today()
-    sel_first, sel_nxt = month_bounds(month or today)
-    sel_end = sel_nxt - timedelta(days=1)
+    sel_first = first_of_month(month or today)
+    sel_end = last_day_of_month(sel_first)
 
     current_liquid = liquid_cash(db)
 
@@ -347,7 +335,7 @@ def project_cashflow(db: Session, month: date | None = None) -> dict:
     # for each month from the current month through the selected one — including
     # dates already past, since we render the whole month and anchor to today.
     events: list[dict] = []
-    span_first, _ = month_bounds(today)
+    span_first = current_month(today)
     m = span_first
     while m <= sel_first:
         planned = planned_income_for_month(db, m)
@@ -378,7 +366,7 @@ def project_cashflow(db: Session, month: date | None = None) -> dict:
                     "amount": -Decimal(assigned),
                 }
             )
-        m = month_bounds(m)[1]
+        m = next_month(m)
 
     events.sort(key=lambda e: e["date"])
 
@@ -442,8 +430,7 @@ def project_cashflow(db: Session, month: date | None = None) -> dict:
 
 def enrich_fund(db: Session, f: Fund, month: date | None = None) -> dict:
     month = month or date.today()
-    _, nxt = month_bounds(month)
-    as_of = nxt - timedelta(days=1)  # last day of selected month
+    as_of = last_day_of_month(month)
     out = {
         "id": f.id,
         "name": f.name,

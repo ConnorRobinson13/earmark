@@ -2,17 +2,17 @@
 from datetime import date
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..db import get_db
 from ..models import Fund
+from ..month import is_current_month, next_month, parse_month
 from ..services import transactions as tx_svc
 from ..services.balances import (
     fund_assigned_in_month,
-    month_bounds,
     untagged_income_in_month,
 )
 
@@ -29,13 +29,6 @@ class SetIncomeBody(BaseModel):
     amount: Decimal
 
 
-def _parse_month(s: str) -> date:
-    try:
-        return date.fromisoformat(s + "-01" if len(s) == 7 else s).replace(day=1)
-    except ValueError:
-        raise HTTPException(400, f"invalid month: {s}")
-
-
 @router.post("/copy-assignments")
 def copy_assignments(body: CopyAssignmentsBody, db: Session = Depends(get_db)):
     """Make `to_month`'s per-fund assignment totals equal `from_month`'s.
@@ -45,23 +38,21 @@ def copy_assignments(body: CopyAssignmentsBody, db: Session = Depends(get_db)):
     single delta assignment per fund (positive or negative) so the net assigned in
     `to_month` matches `from_month`. Idempotent.
     """
-    src = _parse_month(body.from_month)
-    dst = _parse_month(body.to_month)
+    src = parse_month(body.from_month)
+    dst = parse_month(body.to_month)
 
-    today = date.today()
-    today_month_first, _ = month_bounds(today)
-    post_date = today if dst == today_month_first else dst
+    # Backdate the posting to the target month, unless that month is the current
+    # one — then it belongs on today, so the ledger reads chronologically.
+    post_date = date.today() if is_current_month(dst) else dst
 
-    _, src_end = month_bounds(src)
-    dst_first, _ = month_bounds(dst)
+    src_end = next_month(src)
 
     # Funds active during source month: created before end of src AND (not globally archived OR archived after src end) AND (no effective_to OR effective_to >= src first)
-    src_first, _ = month_bounds(src)
     funds = db.scalars(
         select(Fund).where(
             Fund.created_at < src_end,
             (Fund.archived_at.is_(None)) | (Fund.archived_at >= src_end),
-            (Fund.effective_to_month.is_(None)) | (Fund.effective_to_month >= src_first),
+            (Fund.effective_to_month.is_(None)) | (Fund.effective_to_month >= src),
         )
     ).all()
 
@@ -72,7 +63,7 @@ def copy_assignments(body: CopyAssignmentsBody, db: Session = Depends(get_db)):
         if f.archived_at is not None:
             f.archived_at = None
             bumped = True
-        if f.effective_to_month is not None and f.effective_to_month < dst_first:
+        if f.effective_to_month is not None and f.effective_to_month < dst:
             f.effective_to_month = None
             bumped = True
         if bumped:
@@ -109,10 +100,8 @@ def copy_assignments(body: CopyAssignmentsBody, db: Session = Depends(get_db)):
 @router.post("/set-monthly-income")
 def set_monthly_income(body: SetIncomeBody, db: Session = Depends(get_db)):
     """Make total untagged income for `month` equal `amount` by posting a delta."""
-    month = _parse_month(body.month)
-    today = date.today()
-    today_first, _ = month_bounds(today)
-    post_date = today if month == today_first else month
+    month = parse_month(body.month)
+    post_date = date.today() if is_current_month(month) else month
 
     current = untagged_income_in_month(db, month)
     delta = body.amount - current

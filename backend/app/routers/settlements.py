@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 
 from ..db import get_db
 from ..models import Account, AccountType, Fund, FundKind, GoalSettlement
+from ..month import parse_month_or_current
 from ..services.balances import goal_pending_settlement
 
 router = APIRouter(prefix="/settlements", tags=["settlements"])
@@ -43,13 +44,7 @@ class SettleBody(BaseModel):
 @router.get("/pending", response_model=list[ToMoveItem])
 def list_pending(month: str | None = None, db: Session = Depends(get_db)):
     """Goals with a positive pending amount for the given month."""
-    if month:
-        try:
-            month_date = date.fromisoformat(month + "-01" if len(month) == 7 else month)
-        except ValueError:
-            raise HTTPException(400, "month must be YYYY-MM or YYYY-MM-DD")
-    else:
-        month_date = date.today()
+    month_date = parse_month_or_current(month)
 
     first_checking = db.scalar(
         select(Account).where(Account.type == AccountType.checking).order_by(Account.id).limit(1)

@@ -7,9 +7,10 @@ from sqlalchemy.orm import Session
 from .. import schemas
 from ..db import get_db
 from ..models import Fund, Transaction
+from ..month import parse_month
 from ..services import transactions as tx_svc
 from ..services.account_sync import sync_goals_for_account
-from ..services.balances import enrich_fund, fund_balance, month_bounds
+from ..services.balances import enrich_fund, fund_balance
 
 router = APIRouter(prefix="/funds", tags=["funds"])
 
@@ -63,7 +64,7 @@ def update_fund(fund_id: int, body: schemas.FundUpdate, db: Session = Depends(ge
 @router.delete("/{fund_id}")
 def archive_fund(
     fund_id: int,
-    month: str | None = Query(None, description="YYYY-MM-DD — if set, end the fund from this month forward only"),
+    month: str | None = Query(None, description="YYYY-MM or YYYY-MM-DD — if set, end the fund from this month forward only"),
     db: Session = Depends(get_db),
 ):
     """Delete a fund.
@@ -94,11 +95,7 @@ def archive_fund(
         return {"archived": True, "swept_to_unassigned": str(swept)}
 
     # per-month end
-    try:
-        month_date = date.fromisoformat(month)
-    except ValueError:
-        raise HTTPException(400, "month must be YYYY-MM-DD")
-    month_start, _ = month_bounds(month_date)
+    month_start = parse_month(month)
     prior_day = month_start - timedelta(days=1)
 
     # Sweep balance as of end-of-prior-month back to Unassigned, dated prior_day
