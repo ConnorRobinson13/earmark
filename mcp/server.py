@@ -122,10 +122,6 @@ def _month_first(raw: str) -> date:
     return named.replace(day=1)
 
 
-def _current_month() -> date:
-    return date.today().replace(day=1)
-
-
 # ─────────────────────────── READ TOOLS ───────────────────────────
 
 @mcp.tool()
@@ -269,8 +265,13 @@ def assign_to_fund(fund_id: int, amount: float, month: str = "") -> dict:
     current month is dated today; any other month is dated its first day, so it
     counts toward the month you named rather than the month you're in.
     """
-    target = _month_first(month) if month else _current_month()
-    dated = date.today() if target == _current_month() else target
+    # One reading of the clock for the whole assignment. Sampling it per use put
+    # three `date.today()` calls in two lines, and a call straddling midnight on
+    # the first of a month compared one month against the next.
+    today = date.today()
+    current = today.replace(day=1)
+    target = _month_first(month) if month else current
+    dated = today if target == current else target
     return _post("/transactions/assign", {
         "fund_id": fund_id,
         "amount": amount,

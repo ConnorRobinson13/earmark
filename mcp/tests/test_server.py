@@ -65,6 +65,30 @@ def test_assigning_with_no_month_dates_the_assignment_to_today(api):
     assert api.body["date"] == date.today().isoformat()
 
 
+def test_one_assignment_reads_the_clock_once(api, monkeypatch):
+    """Every "now" in a single assignment comes from one reading of the clock.
+
+    Today and the current month were sampled separately — three `date.today()`
+    calls across two lines — so a call that straddles midnight on the first of a
+    month compared June's month against July's and fell to the "some other
+    month" branch, dating a *current*-month assignment to a day that had already
+    passed. Rare, and silent when it happens: the posted date is a real date, it
+    just isn't the one asked for.
+    """
+    ticks = iter([date(2020, 6, 30), date(2020, 7, 1), date(2020, 7, 1)])
+
+    class TickingDate(date):
+        @classmethod
+        def today(cls) -> date:
+            return next(ticks)
+
+    monkeypatch.setattr(server, "date", TickingDate)
+
+    server.assign_to_fund(fund_id=4, amount=125.0)
+
+    assert api.body["date"] == "2020-06-30"
+
+
 @pytest.mark.parametrize(
     "month",
     [
