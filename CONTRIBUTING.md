@@ -50,6 +50,16 @@ If you'd rather point it at a database you already have, set
 between tests**, so give it a database of its own — never the one behind
 `docker compose` on port 5433.
 
+The MCP server has its own suite, and that one needs nothing at all — no Docker,
+no database, no backend. It stands a fake API in front of the tools and checks
+the requests they build:
+
+```bash
+cd mcp
+pip install -r requirements-dev.txt
+pytest
+```
+
 ## Style
 
 - Match the surrounding code. The backend leans on type hints and small,

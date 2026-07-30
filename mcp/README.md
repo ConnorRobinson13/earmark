@@ -4,6 +4,11 @@ A Streamable-HTTP MCP server that wraps the budget-app API. It never touches
 Postgres directly — every tool calls the FastAPI backend so the EveryDollar-style
 balance math and write-safety logic stay in one place.
 
+The tools forward; they don't decide. Amounts keep the sign they were given,
+months go over the wire in whichever form the caller used, and a rejection comes
+back in the backend's own words. Anything re-derived here is a second answer to a
+question the backend has already answered, and the wrong one wins quietly.
+
 ## Running
 
 Comes up with the rest of the stack:
@@ -29,6 +34,20 @@ If `MCP_AUTH_TOKEN` is empty the server runs open (local-only — don't tunnel i
 **Write** (mutate the ledger — confirm with the user first):
 `assign_to_fund`, `record_transaction`, `mark_goal_contributed`,
 `set_planned_income`
+
+Each tool's docstring is its whole interface as far as the model is concerned, so
+a docstring that disagrees with the endpoint is a bug, not a typo.
+
+## Tests
+
+Nothing needs to be running — the suite swaps a fake backend into `server._http`
+and asserts on the requests the tools build:
+
+```bash
+cd mcp
+pip install -r requirements-dev.txt
+pytest
+```
 
 ## Connecting
 

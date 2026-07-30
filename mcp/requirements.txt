@@ -1,4 +1,8 @@
-mcp>=1.13.0
+# Bounded on both ends, because either side of this range builds a container that
+# can't import itself: 1.13 reads a tool's annotations without resolving them, so
+# `from __future__ import annotations` makes every tool fail to register, and 2.0
+# drops `mcp.server.fastmcp` altogether.
+mcp>=1.14,<2
 httpx==0.27.2
 uvicorn[standard]==0.32.0
 starlette>=0.40.0

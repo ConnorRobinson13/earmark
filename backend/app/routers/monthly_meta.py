@@ -3,7 +3,7 @@ from datetime import date
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -20,7 +20,11 @@ class MonthlyMetaOut(BaseModel):
 
 
 class MonthlyMetaPatch(BaseModel):
-    planned_income: Decimal
+    # Never negative: Unassigned is computed from this, so a negative would show
+    # up as money to budget that doesn't exist. The web UI has always refused one
+    # in its own input handler — this is that rule where every caller meets it,
+    # the MCP tools included. Zero is fine: a month can plan on no income.
+    planned_income: Decimal = Field(ge=0)
 
 
 @router.get("/{month}", response_model=MonthlyMetaOut)
