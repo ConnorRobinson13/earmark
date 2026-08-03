@@ -16,6 +16,8 @@ from calendar import monthrange
 from datetime import date, timedelta
 from decimal import Decimal
 
+from app.month import next_month
+
 TOP_LEVEL_KEYS = [
     "month",
     "past",
@@ -92,6 +94,36 @@ def test_the_projection_reads_the_funds_and_paydays_that_were_posted(client):
     assert Decimal(day[first.replace(day=20).isoformat()]["balance"]) == Decimal(
         day[first.replace(day=15).isoformat()]["balance"]
     ) - Decimal("1800.00")
+
+
+def test_a_future_month_opens_where_the_current_one_closed(client):
+    """The gather step's span, proven from the database rather than by literal.
+
+    Projecting a later month means reading every month from the current one
+    through it, so the anchor on today's real cash can be carried forward. The
+    pure tests exercise that walk with hand-built inputs; nothing else proves
+    the reads actually cover the span — and a gather that returned only the
+    selected month would leave both halves' own tests green while the month
+    silently opened at today's balance.
+    """
+    _seed(client)
+    nxt = next_month(date.today().replace(day=1))
+    this = client.get("/cashflow").json()
+    body = client.get(f"/cashflow?month={nxt:%Y-%m}").json()
+
+    assert body["past"] is False
+    assert Decimal(body["start_balance"]) == Decimal(this["ending_balance"])
+    # A month we are not standing in has no "today" to flag.
+    assert not any(d["is_today"] for d in body["days"])
+    assert [d["date"] for d in body["days"]] == [
+        nxt.replace(day=n).isoformat()
+        for n in range(1, monthrange(nxt.year, nxt.month)[1] + 1)
+    ]
+    # The payday recurs; the Rent assignment was only made for this month, so
+    # next month draws nothing for it.
+    assert [(e["label"], e["amount"]) for d in body["days"] for e in d["events"]] == [
+        ("Paycheck", "1500.00")
+    ]
 
 
 def test_a_month_already_over_reports_only_todays_cash(client):
