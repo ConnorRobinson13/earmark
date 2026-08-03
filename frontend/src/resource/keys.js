@@ -12,6 +12,6 @@ export const keys = {
   accounts: () => '/accounts',
   inbox: () => '/inbox',
   fund: (id) => `/funds/${id}`,
-  fundTransactions: (id, limit = 200) => `/transactions?fund_id=${id}&limit=${limit}`,
+  fundTransactions: (id) => `/transactions?fund_id=${id}&limit=200`,
   pendingSettlements: (month) => `/settlements/pending${month ? `?month=${month}` : ''}`,
 }

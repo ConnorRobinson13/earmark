@@ -12,7 +12,6 @@
 export { useResource } from './useResource'
 export { keys } from './keys'
 export { ApiError } from './ApiError'
-export { ResourceProvider, useResourceStore, browserStore } from './context'
+export { ResourceProvider, useResourceStore } from './context'
 export { createResourceStore } from './store'
-export { createHttpAdapter } from './httpAdapter'
 export { createStubAdapter } from './stubAdapter'

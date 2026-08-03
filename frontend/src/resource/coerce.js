@@ -5,11 +5,32 @@
  * string ("1234.56") to avoid float drift on the wire. Every consumer then had
  * to remember `Number(...)` before doing arithmetic — and mostly did, 85 times.
  * Coercing once here means views can treat money as numbers.
+ *
+ * Shape alone can't tell money from text: a fund called "529" or a merchant
+ * called "76" is a string that looks like a number, and turning it into one
+ * breaks `localeCompare` and equality checks downstream. So text fields are
+ * named here and left alone, and everything else decimal-shaped is money.
+ * A field the backend adds is money by default, which is the safe way round —
+ * a missed text field renders the same, a missed money field breaks sums.
  */
 
+// Field names whose values are text: typed by the user, or an opaque token.
+const TEXT_FIELDS = new Set([
+  // user-typed
+  'name', 'goal_name', 'fund_name', 'to_account_name', 'account_name',
+  'merchant', 'notes', 'category', 'categories', 'institution_name',
+  // enums
+  'type', 'kind', 'goal_type', 'status', 'source',
+  // dates — these don't match the pattern below either, but say so out loud
+  'month', 'date', 'target_date', 'settled_at', 'created_at', 'archived_at',
+  'last_synced_at',
+  // opaque identifiers
+  'mask', 'plaid_transaction_id', 'plaid_item_id',
+])
+
 // Plain base-10 integers and decimals only. Deliberately does NOT match:
-// dates ("2026-08-01"), datetimes, exponent notation, or anything with
-// surrounding whitespace.
+// dates ("2026-08-01"), datetimes, exponent notation, leading zeros (account
+// masks), or anything with surrounding whitespace.
 const DECIMAL = /^-?(0|[1-9]\d*)(\.\d+)?$/
 
 // Longer than this and a round trip through a double can lose digits, so the
@@ -22,13 +43,19 @@ function coerceString(s) {
   return Number(s)
 }
 
-/** Deep-copy `value`, replacing every decimal-looking string with its number. */
-export function coerceNumbers(value) {
-  if (typeof value === 'string') return coerceString(value)
-  if (Array.isArray(value)) return value.map(coerceNumbers)
+/**
+ * Deep-copy `value`, replacing every decimal-looking string with its number.
+ *
+ * `key` is the field the value arrived under; nested arrays keep their parent's
+ * key, so `categories: ["Housing", "529"]` stays text while the values of
+ * `categories: { Housing: "1200.00" }` — keyed by category name — do not.
+ */
+export function coerceNumbers(value, key) {
+  if (typeof value === 'string') return TEXT_FIELDS.has(key) ? value : coerceString(value)
+  if (Array.isArray(value)) return value.map(v => coerceNumbers(v, key))
   if (value && typeof value === 'object') {
     const out = {}
-    for (const [k, v] of Object.entries(value)) out[k] = coerceNumbers(v)
+    for (const [k, v] of Object.entries(value)) out[k] = coerceNumbers(v, k)
     return out
   }
   return value

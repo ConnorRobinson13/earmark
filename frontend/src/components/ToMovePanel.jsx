@@ -14,11 +14,10 @@ import { Icon } from './Icons'
  */
 export default function ToMovePanel({ month, accounts, onMoved }) {
   const { data, error, reload } = useResource(keys.pendingSettlements(month))
-  const [settleErr, setSettleErr] = useState('')
+  const [settleErr, setSettleErr] = useState(null)
   const [busyId, setBusyId] = useState(null)
 
-  if (error) return <ErrorCard error={error} />
-  if (settleErr) return <div className="card"><span className="bad">{settleErr}</span></div>
+  if (error || settleErr) return <ErrorCard error={error || settleErr} />
 
   const items = data || []
   if (items.length === 0) return null
@@ -36,7 +35,9 @@ export default function ToMovePanel({ month, accounts, onMoved }) {
       reload()
       onMoved?.()
     } catch (e) {
-      setSettleErr(String(e))
+      // Writes still go through `api`, which throws a plain Error; ErrorCard
+      // reads whichever kind it is given.
+      setSettleErr(e)
     } finally {
       setBusyId(null)
     }

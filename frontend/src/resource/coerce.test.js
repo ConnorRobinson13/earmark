@@ -52,4 +52,30 @@ describe('coerceNumbers', () => {
     expect(coerceNumbers({ categories: { Housing: '1200.00' } }))
       .toEqual({ categories: { Housing: 1200 } })
   })
+
+  it('leaves text fields alone even when they look like numbers', () => {
+    // A "529" college fund is a real thing to call a fund, and the dashboard
+    // sorts categories with localeCompare.
+    expect(coerceNumbers({ name: '529', category: '529', balance: '250.00' }))
+      .toEqual({ name: '529', category: '529', balance: 250 })
+    expect(coerceNumbers({ merchant: '76', amount: '-42.10' }))
+      .toEqual({ merchant: '76', amount: -42.1 })
+    expect(coerceNumbers({ notes: '100' })).toEqual({ notes: '100' })
+  })
+
+  it('leaves a list of category names alone but coerces a map keyed by them', () => {
+    // Both arrive under `categories` in the /dashboard/trends response.
+    expect(coerceNumbers({
+      categories: ['Housing', '529'],
+      months: [{ month: '2026-08-01', categories: { '529': '1200.00' }, total: '1200.00' }],
+    })).toEqual({
+      categories: ['Housing', '529'],
+      months: [{ month: '2026-08-01', categories: { '529': 1200 }, total: 1200 }],
+    })
+  })
+
+  it('coerces money inside arrays of records', () => {
+    expect(coerceNumbers({ funds: [{ id: 1, name: 'Rent', balance: '1800.00' }] }))
+      .toEqual({ funds: [{ id: 1, name: 'Rent', balance: 1800 }] })
+  })
 })

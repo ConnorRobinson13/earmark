@@ -44,7 +44,7 @@ export function createResourceStore(adapter) {
    * is only cancelled once every caller has dropped out — otherwise one
    * component unmounting would cancel another's data.
    */
-  function fetch(key, { signal } = {}) {
+  function read(key, { signal } = {}) {
     const entry = inflight.get(key) || start(key)
     entry.refs++
 
@@ -83,6 +83,13 @@ export function createResourceStore(adapter) {
    * reaches `/funds/3` and `/funds?include_archived=false`.
    */
   function invalidate(prefix = '') {
+    // Retire matching in-flight requests first: they were issued before
+    // whatever prompted this, so a reader must not be allowed to dedupe onto
+    // one and get the pre-mutation answer. Readers already waiting on them
+    // still get their response, and are told to reload just below.
+    for (const key of [...inflight.keys()]) {
+      if (key.startsWith(prefix)) inflight.delete(key)
+    }
     for (const [key, set] of listeners) {
       if (!key.startsWith(prefix)) continue
       for (const listener of [...set]) listener()
@@ -100,7 +107,7 @@ export function createResourceStore(adapter) {
     }
   }
 
-  return { fetch, invalidate, subscribe }
+  return { read, invalidate, subscribe }
 }
 
 function abortError() {

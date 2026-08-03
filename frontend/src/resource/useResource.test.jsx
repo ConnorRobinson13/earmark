@@ -31,9 +31,8 @@ describe('useResource', () => {
   it('exposes data for a keyed request', async () => {
     const { result } = renderResource(async () => ({ unassigned: '12.50' }), '/dashboard')
 
-    expect(result.current.loading).toBe(true)
-    await waitFor(() => expect(result.current.loading).toBe(false))
-    expect(result.current.data).toEqual({ unassigned: 12.5 })
+    expect(result.current.data).toBe(null)
+    await waitFor(() => expect(result.current.data).toEqual({ unassigned: 12.5 }))
     expect(result.current.error).toBe(null)
   })
 
@@ -86,6 +85,39 @@ describe('useResource', () => {
 
     expect(calls[0].signal.aborted).toBe(true)
     expect(calls[1].signal.aborted).toBe(false)
+  })
+
+  it('drops the previous key’s data instead of showing it under the new key', async () => {
+    const { adapter, callFor } = deferredAdapter()
+    const { result, rerender } = renderResource(adapter, '/dashboard?month=2026-08-01')
+
+    await act(async () => { callFor('/dashboard?month=2026-08-01').resolve({ month: 'august' }) })
+    await waitFor(() => expect(result.current.data).toEqual({ month: 'august' }))
+
+    rerender({ key: '/dashboard?month=2026-07-01' })
+    expect(result.current.data).toBe(null)
+  })
+
+  it('drops the previous key’s error too', async () => {
+    const adapter = vi.fn()
+      .mockRejectedValueOnce(new ApiError(500, { detail: 'boom' }, '/dashboard?month=2026-08-01'))
+      .mockImplementation(() => new Promise(() => {}))
+    const { result, rerender } = renderResource(adapter, '/dashboard?month=2026-08-01')
+
+    await waitFor(() => expect(result.current.error).toBeTruthy())
+    rerender({ key: '/dashboard?month=2026-07-01' })
+    expect(result.current.error).toBe(null)
+  })
+
+  it('keeps what is on screen while a reload of the same key is in flight', async () => {
+    const { adapter, calls } = deferredAdapter()
+    const { result } = renderResource(adapter, '/dashboard')
+
+    await act(async () => { calls[0].resolve({ unassigned: '1' }) })
+    await waitFor(() => expect(result.current.data).toEqual({ unassigned: 1 }))
+
+    act(() => result.current.reload())
+    expect(result.current.data).toEqual({ unassigned: 1 })
   })
 
   it('cannot let a stale response overwrite newer state', async () => {

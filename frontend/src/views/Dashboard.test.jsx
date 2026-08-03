@@ -10,6 +10,9 @@ const FUNDS = [
   fund({ id: 1, name: 'Groceries', category: 'Food', balance: '87.65', net_spent_this_month: '412.35', assigned_this_month: '500.00', available_this_month: '500.00' }),
   fund({ id: 2, name: 'Eating out', category: 'Food', balance: '20.00', net_spent_this_month: '100.00', assigned_this_month: '120.00', available_this_month: '120.00' }),
   fund({ id: 3, name: 'Rent', category: 'Housing', balance: '0.00', net_spent_this_month: '1800.00', assigned_this_month: '1800.00', available_this_month: '1800.00' }),
+  // A fund and category whose names are all digits: the dashboard sorts
+  // categories with localeCompare, which a number does not have.
+  fund({ id: 6, name: '529', category: '529', balance: '75.00', net_spent_this_month: '0.00', assigned_this_month: '50.00', available_this_month: '50.00' }),
   fund({ id: 4, name: 'Emergency fund', kind: 'goal', goal_type: 'savings', category: null, target: '10000.00', balance: '2000.00', assigned_this_month: '250.00' }),
   fund({ id: 5, name: 'New laptop', kind: 'goal', goal_type: 'savings', category: null, target: '2000.00', balance: '500.00', assigned_this_month: '100.00' }),
 ]
@@ -59,6 +62,8 @@ describe('Dashboard', () => {
     expect(screen.getByText('Money to assign. Zero-based means every dollar should land in a fund before the month is out.')).toBeTruthy()
     expect(screen.getByText('Groceries')).toBeTruthy()
     expect(screen.getByText('Rent')).toBeTruthy()
+    // Fund name and category heading, both still text rather than numbers.
+    expect(screen.getAllByText('529').length).toBe(2)
     expect(screen.getAllByText('Emergency fund').length).toBeGreaterThan(0)
     // The to-move panel is fed by its own key and renders alongside.
     expect(await screen.findByText('Ally savings')).toBeTruthy()
@@ -79,14 +84,16 @@ describe('Dashboard', () => {
   it('reads every key through the resource module', async () => {
     const { adapter } = renderApp(routes())
 
-    await screen.findAllByText('$120.50')
-    expect(adapter.requested).toEqual(expect.arrayContaining([
+    // The panels below the fold only mount once the dashboard read lands, so
+    // wait for the whole tree rather than the hero alone.
+    await screen.findByText('Ally savings')
+    await waitFor(() => expect(adapter.requested).toEqual(expect.arrayContaining([
       keys.dashboard(MONTH),
       keys.inbox(),
       keys.accounts(),
       keys.pendingSettlements(MONTH),
       keys.dashboardTrends(6),
-    ]))
+    ])))
   })
 
   it('feeds the shell topbar chip and the inbox count', async () => {

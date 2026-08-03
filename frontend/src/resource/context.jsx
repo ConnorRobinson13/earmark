@@ -7,7 +7,7 @@ import { createHttpAdapter } from './httpAdapter'
  * `<ResourceProvider>`, which is the whole point of the adapter seam — a view
  * can render with no backend running.
  */
-export const browserStore = createResourceStore(createHttpAdapter())
+const browserStore = createResourceStore(createHttpAdapter())
 
 const ResourceContext = createContext(browserStore)
 
