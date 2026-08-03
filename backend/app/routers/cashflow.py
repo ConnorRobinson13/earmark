@@ -2,10 +2,10 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from ..cashflow import CashflowPlan, project
 from ..db import get_db
 from ..month import parse_month_or_current
 from ..services.balances import gather_cashflow_inputs
+from ..services.cashflow import CashflowPlan, project
 
 router = APIRouter(prefix="/cashflow", tags=["cashflow"])
 

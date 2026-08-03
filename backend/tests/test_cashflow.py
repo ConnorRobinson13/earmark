@@ -15,7 +15,7 @@ from collections.abc import Sequence
 from datetime import date
 from decimal import Decimal
 
-from app.cashflow import (
+from app.services.cashflow import (
     CashflowDay,
     CashflowInputs,
     CashflowPlan,

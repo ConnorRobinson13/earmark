@@ -20,7 +20,6 @@ from decimal import Decimal
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ..cashflow import CashflowInputs, FundCharge, MonthInputs, Payday
 from ..month import (
     current_month,
     first_of_month,
@@ -37,6 +36,7 @@ from ..models import (
     PaydaySchedule,
     Transaction,
 )
+from .cashflow import CashflowInputs, FundCharge, MonthInputs, Payday, month_is_over
 
 
 def liquid_cash(db: Session) -> Decimal:
@@ -299,10 +299,8 @@ def active_funds_in_month(db: Session, month: date) -> list[Fund]:
     )
 
 
-def gather_cashflow_inputs(
-    db: Session, month: date | None = None, today: date | None = None
-) -> CashflowInputs:
-    """Read everything `app.cashflow.project` needs to project `month`.
+def gather_cashflow_inputs(db: Session, month: date | None = None) -> CashflowInputs:
+    """Read everything `app.services.cashflow.project` needs to project `month`.
 
     This is the database half of the cash-flow projection, and the only half
     that touches a session: current liquid cash, the payday schedule, and — for
@@ -311,13 +309,13 @@ def gather_cashflow_inputs(
     current month because the projection anchors its running balance to today's
     real cash and carries it forward from there.
     """
-    today = today or date.today()
+    today = date.today()
     sel_first = first_of_month(month or today)
     current_liquid = liquid_cash(db)
 
     # A month already over is answered from liquid cash alone, so don't pay for
     # per-month reads the projection will never look at.
-    if last_day_of_month(sel_first) < today:
+    if month_is_over(sel_first, today):
         return CashflowInputs(today=today, month=sel_first, liquid_cash=current_liquid)
 
     paydays = [

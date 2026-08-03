@@ -23,9 +23,9 @@ from datetime import date, timedelta
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from .month import clamp_day_to_month, first_of_month, last_day_of_month
+from ..month import clamp_day_to_month, first_of_month, last_day_of_month
 
 
 # ---------- Inputs ----------
@@ -37,7 +37,8 @@ class Payday(BaseModel):
     an even share of whatever planned income the fixed ones leave behind.
     """
 
-    day_of_month: int  # 1-31, clamped to the month's length when it lands
+    # Clamped to the month's length when it lands, so the 31st is legal.
+    day_of_month: int = Field(ge=1, le=31)
     amount: Decimal | None = None
 
 
@@ -45,7 +46,7 @@ class FundCharge(BaseModel):
     """A fund's whole monthly assignment, leaving the account on `due_day`."""
 
     name: str
-    due_day: int  # 1-31, clamped the same way a payday is
+    due_day: int = Field(ge=1, le=31)  # clamped the same way a payday is
     assigned: Decimal  # positive: what the fund was assigned this month
 
 
@@ -113,6 +114,16 @@ class CashflowPlan(BaseModel):
     days: list[CashflowDay]
 
 
+def month_is_over(month: date, today: date) -> bool:
+    """Whether `month` ended before today.
+
+    Both halves of the projection ask this — `project` to short-circuit, and
+    the gather step to skip reads whose answers would go unread — so they share
+    the question rather than each spelling out their own version of it.
+    """
+    return last_day_of_month(first_of_month(month)) < today
+
+
 def project(inputs: CashflowInputs) -> CashflowPlan:
     """Draw the day-by-day plan for `inputs.month`."""
     sel_first = first_of_month(inputs.month)
@@ -121,7 +132,7 @@ def project(inputs: CashflowInputs) -> CashflowPlan:
     # A month already over cannot be reconstructed day by day: we know what the
     # account holds now, not what it held on each of those days. Report today's
     # cash flatly rather than drawing a line that would be fiction.
-    if sel_end < inputs.today:
+    if month_is_over(sel_first, inputs.today):
         return CashflowPlan(
             month=sel_first,
             past=True,
@@ -144,12 +155,12 @@ def project(inputs: CashflowInputs) -> CashflowPlan:
 
     # Walk the whole span day by day — the months before the selected one only
     # carry the running balance forward — and keep the selected month's days.
-    span_first = inputs.months[0].month if inputs.months else sel_first
+    # Starting no later than the selected month guarantees at least one day,
+    # and pinning to the first matches the days the events were built against.
+    span_first = min([first_of_month(m.month) for m in inputs.months] + [sel_first])
     days: list[CashflowDay] = []
     running = span_start
     carried_in = span_start  # balance carried into the first selected day
-    min_balance: Decimal | None = None
-    min_date = sel_first
     ei = 0
     d = span_first
     while d <= sel_end:
@@ -169,16 +180,11 @@ def project(inputs: CashflowInputs) -> CashflowPlan:
                     is_today=d == inputs.today,
                 )
             )
-            # Strictly lower, so a balance touched twice reports the first day
-            # it was reached — that is the one worth warning about.
-            if min_balance is None or running < min_balance:
-                min_balance = running
-                min_date = d
         d += timedelta(days=1)
 
-    # No days at all only happens for a span that ends before it starts, which
-    # the past-month branch above has already ruled out.
-    low = min_balance if min_balance is not None else span_start
+    # `min` keeps the first of equal balances, so a low touched twice reports
+    # the day it was first reached — that is the one worth warning about.
+    low = min(days, key=lambda day: day.balance)
 
     return CashflowPlan(
         month=sel_first,
@@ -186,9 +192,9 @@ def project(inputs: CashflowInputs) -> CashflowPlan:
         today=inputs.today,
         start_balance=carried_in,
         ending_balance=running,
-        min_balance=low,
-        min_date=min_date,
-        goes_negative=low < 0,
+        min_balance=low.balance,
+        min_date=low.date,
+        goes_negative=low.balance < 0,
         days=days,
     )
 
