@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { api, fmt } from '../api'
+import { keys, useResource } from '../resource'
+import ErrorCard from './ErrorCard'
 import { Icon } from './Icons'
 
 /**
@@ -11,33 +13,30 @@ import { Icon } from './Icons'
  * the source account down and the goal's backing account up.
  */
 export default function ToMovePanel({ month, accounts, onMoved }) {
-  const [items, setItems] = useState([])
-  const [err, setErr] = useState('')
+  const { data, error, reload } = useResource(keys.pendingSettlements(month))
+  const [settleErr, setSettleErr] = useState('')
   const [busyId, setBusyId] = useState(null)
 
-  async function load() {
-    try { setItems(await api.settlements.pending(month)) }
-    catch (e) { setErr(String(e)) }
-  }
-  useEffect(() => { load() }, [month])
+  if (error) return <ErrorCard error={error} />
+  if (settleErr) return <div className="card"><span className="bad">{settleErr}</span></div>
 
-  if (err) return <div className="card"><span className="bad">{err}</span></div>
+  const items = data || []
   if (items.length === 0) return null
 
-  const total = items.reduce((s, it) => s + Number(it.pending_amount), 0)
+  const total = items.reduce((s, it) => s + it.pending_amount, 0)
 
   async function settle(item, fromAccountId) {
     setBusyId(item.goal_id)
     try {
       await api.settlements.settle(item.goal_id, {
-        amount: Number(item.pending_amount),
+        amount: item.pending_amount,
         from_account_id: fromAccountId || null,
         settled_at: lastDayOf(month),
       })
-      await load()
+      reload()
       onMoved?.()
     } catch (e) {
-      setErr(String(e))
+      setSettleErr(String(e))
     } finally {
       setBusyId(null)
     }

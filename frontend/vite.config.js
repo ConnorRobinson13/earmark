@@ -23,6 +23,11 @@ export default defineConfig({
       },
     }),
   ],
+  test: {
+    environment: 'jsdom',
+    // Testing Library hooks its between-test cleanup onto the global afterEach.
+    globals: true,
+  },
   server: {
     port: 5173,
     proxy: {

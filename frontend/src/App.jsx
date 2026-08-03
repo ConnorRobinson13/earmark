@@ -11,6 +11,7 @@ import NetWorth from './views/NetWorth'
 import { thisMonth, monthLabel, shiftMonth } from './components/MonthSelector'
 import { Icon } from './components/Icons'
 import { fmt } from './api'
+import { useResourceStore } from './resource'
 
 export default function App() {
   return (
@@ -35,7 +36,12 @@ function Shell() {
   const [unassigned, setUnassigned] = useState(null)
   const [inboxCount, setInboxCount] = useState(0)
   const [refreshTick, setRefreshTick] = useState(0)
-  const refresh = useCallback(() => setRefreshTick(t => t + 1), [])
+  const store = useResourceStore()
+  // Migrated views refetch from the invalidation; the rest still watch the tick.
+  const refresh = useCallback(() => {
+    store.invalidate()
+    setRefreshTick(t => t + 1)
+  }, [store])
 
   const ctx = { month, setMonth, unassigned, setUnassigned, inboxCount, setInboxCount, refreshTick, refresh }
 
