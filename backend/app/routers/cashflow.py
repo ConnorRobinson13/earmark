@@ -2,16 +2,19 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from ..cashflow import CashflowPlan, project
 from ..db import get_db
 from ..month import parse_month_or_current
-from ..services.balances import project_cashflow
+from ..services.balances import gather_cashflow_inputs
 
 router = APIRouter(prefix="/cashflow", tags=["cashflow"])
 
 
-@router.get("")
+@router.get("", response_model=CashflowPlan)
 def cashflow(
     month: str | None = Query(None, description="YYYY-MM or YYYY-MM-DD; defaults to current month"),
     db: Session = Depends(get_db),
 ):
-    return project_cashflow(db, parse_month_or_current(month))
+    # Gather, then project: the session stops here, and the arithmetic behind
+    # the plan never sees it.
+    return project(gather_cashflow_inputs(db, parse_month_or_current(month)))
