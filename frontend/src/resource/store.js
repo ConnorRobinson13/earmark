@@ -45,6 +45,12 @@ export function createResourceStore(adapter) {
    * component unmounting would cancel another's data.
    */
   function read(key, { signal } = {}) {
+    // Before anything else: a caller who has already given up gets nothing
+    // started on their behalf. Taking a share first and dropping it here would
+    // dispatch a request only to abort it, and leave that request's rejection
+    // with no handler attached to it.
+    if (signal?.aborted) return Promise.reject(abortError())
+
     const entry = inflight.get(key) || start(key)
     entry.refs++
 
@@ -59,10 +65,6 @@ export function createResourceStore(adapter) {
     }
 
     if (!signal) return entry.promise.finally(release)
-    if (signal.aborted) {
-      release()
-      return Promise.reject(abortError())
-    }
 
     return new Promise((resolve, reject) => {
       const onAbort = () => {

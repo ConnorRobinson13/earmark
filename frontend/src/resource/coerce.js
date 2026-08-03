@@ -19,6 +19,10 @@ const TEXT_FIELDS = new Set([
   // user-typed
   'name', 'goal_name', 'fund_name', 'to_account_name', 'account_name',
   'merchant', 'notes', 'category', 'categories', 'institution_name',
+  // a cash-flow event's label is a fund's name (or "Paycheck"), so it is
+  // user-typed too — listed ahead of that view migrating, because a fund
+  // called "529" would otherwise become a number in the timeline.
+  'label',
   // enums
   'type', 'kind', 'goal_type', 'status', 'source',
   // dates — these don't match the pattern below either, but say so out loud

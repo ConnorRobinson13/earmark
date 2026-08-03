@@ -74,6 +74,19 @@ describe('coerceNumbers', () => {
     })
   })
 
+  it('leaves a cash-flow event label alone even when it is all digits', () => {
+    // `label` is a fund's name, so a fund called "529" must stay a string.
+    expect(coerceNumbers({
+      days: [{ date: '2026-08-20', balance: '1200.00', events: [
+        { kind: 'outflow', label: '529', amount: '-300.00' },
+      ] }],
+    })).toEqual({
+      days: [{ date: '2026-08-20', balance: 1200, events: [
+        { kind: 'outflow', label: '529', amount: -300 },
+      ] }],
+    })
+  })
+
   it('coerces money inside arrays of records', () => {
     expect(coerceNumbers({ funds: [{ id: 1, name: 'Rent', balance: '1800.00' }] }))
       .toEqual({ funds: [{ id: 1, name: 'Rent', balance: 1800 }] })

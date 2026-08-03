@@ -126,6 +126,33 @@ describe('createResourceStore', () => {
     await expect(after).resolves.toEqual({ unassigned: 2 })
   })
 
+  it('starts nothing for a caller who has already given up', async () => {
+    // The share is taken after this check, not before: dispatching a request
+    // only to abort it would also leave its rejection with no handler.
+    const adapter = vi.fn(() => new Promise(() => {}))
+    const store = createResourceStore(adapter)
+    const controller = new AbortController()
+    controller.abort()
+
+    await expect(store.read('/accounts', { signal: controller.signal }))
+      .rejects.toMatchObject({ name: 'AbortError' })
+    expect(adapter).not.toHaveBeenCalled()
+  })
+
+  it('leaves an in-flight request alone when a late caller arrives already aborted', async () => {
+    const { adapter, calls } = deferredAdapter()
+    const store = createResourceStore(adapter)
+
+    const wanted = store.read('/accounts')
+    const controller = new AbortController()
+    controller.abort()
+    await expect(store.read('/accounts', { signal: controller.signal }))
+      .rejects.toMatchObject({ name: 'AbortError' })
+
+    calls[0].resolve({ total: '10.00' })
+    await expect(wanted).resolves.toEqual({ total: 10 })
+  })
+
   it('stops notifying after unsubscribe', () => {
     const store = createResourceStore(vi.fn())
     const listener = vi.fn()
