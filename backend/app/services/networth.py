@@ -11,7 +11,6 @@ Nothing in this module commits. Callers own the transaction boundary.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
 from decimal import Decimal
 
 from sqlalchemy import select
@@ -98,15 +97,15 @@ def compute_net_worth(db: Session) -> NetWorth:
     )
 
 
-def capture_snapshot(db: Session, month: date | None = None) -> NetWorthSnapshot:
-    """Record today's net worth against `month`, replacing that month's row if
+def capture_snapshot(db: Session) -> NetWorthSnapshot:
+    """Record today's net worth against this month, replacing the month's row if
     one is already there — the chart wants one point per month, and the latest
     reading is the one worth keeping.
 
     Flushes but does not commit: this is a write, so the caller decides when it
     lands.
     """
-    first = current_month(month)
+    first = current_month()
     nw = compute_net_worth(db)
 
     snap = db.get(NetWorthSnapshot, first)

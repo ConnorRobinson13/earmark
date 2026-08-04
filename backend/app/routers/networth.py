@@ -18,7 +18,7 @@ from ..services.networth import (
 router = APIRouter(prefix="/networth", tags=["networth"])
 
 
-def _serialize(nw: NetWorth) -> dict:
+def _serialize_net_worth(nw: NetWorth) -> dict:
     # Money crosses the wire as strings so no client rounds a Decimal into a float.
     return {
         "total": str(nw.total),
@@ -65,7 +65,7 @@ def networth(db: Session = Depends(get_db)):
       total:      liquid + investment + emergency − credit − loan
       accounts:   per-account rows
     """
-    return _serialize(compute_net_worth(db))
+    return _serialize_net_worth(compute_net_worth(db))
 
 
 @router.post("/snapshot", status_code=201)
