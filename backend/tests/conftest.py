@@ -2,8 +2,9 @@
 
 By default the suite starts a throwaway `pgvector/pgvector:pg16` container via
 testcontainers, so `pytest` works from a clean checkout with nothing running but
-Docker. Set `TEST_DATABASE_URL` to point at an existing database instead — the
-schema is created into whatever it names, so never point it at real data.
+Docker. Set `TEST_DATABASE_URL` to point at an existing database instead — every
+table in it is dropped and rebuilt from the migrations, so never point it at
+real data.
 """
 from __future__ import annotations
 
@@ -13,6 +14,7 @@ from pathlib import Path
 
 import pytest
 from sqlalchemy import text
+from sqlalchemy.engine import Engine, make_url
 
 # So `pytest backend/tests` works from the repo root too, not just `cd backend`.
 BACKEND = Path(__file__).resolve().parents[1]
@@ -44,10 +46,39 @@ def _no_accidental_fallback():
     db_module.reset()
 
 
+def _refuse_the_real_database(url: str) -> None:
+    """Stop before touching the database the app itself is configured against.
+
+    The fixture below drops every table in the schema. Truncating the real
+    budget database would have been bad; dropping it takes the schema with it.
+    `settings.database_url` is the one address we can be sure is not a
+    throwaway — it is the compose stack holding actual financial data — so
+    matching it is a hard stop rather than a warning in a docstring.
+    """
+    from app.config import settings
+
+    def bare(u: str) -> str:
+        # Compare on host/port/database, so a differing driver or password
+        # cannot smuggle the same database past the check.
+        return make_url(u).set(drivername="", username="", password="").render_as_string()
+
+    try:
+        same = bare(url) == bare(settings.database_url)
+    except Exception:  # an unparseable URL is the caller's problem, not ours
+        return
+    if same:
+        pytest.exit(
+            "TEST_DATABASE_URL points at the same database as settings.database_url. "
+            "The suite drops every table in it. Point it at a throwaway database.",
+            returncode=2,
+        )
+
+
 @pytest.fixture(scope="session")
 def database_url():
     url = os.environ.get("TEST_DATABASE_URL")
     if url:
+        _refuse_the_real_database(url)
         yield url
         return
 
@@ -64,13 +95,71 @@ def database_url():
         yield container.get_connection_url()
 
 
+def _empty_the_database(eng: Engine) -> None:
+    """Drop every table and enum type, so the migrations can run from zero.
+
+    Migrations are not idempotent: against a database an earlier run left
+    behind — or one the `create_all` this replaces built, which carries no
+    `alembic_version` for `upgrade` to pick up from — 0001 would trip over
+    tables that already exist.
+
+    What is dropped comes from the catalogue rather than from `Base.metadata`,
+    so a table the migrations create and the models never knew about goes too.
+    Enum types need dropping by name because they outlive their tables and
+    `CREATE TYPE` has no IF NOT EXISTS. Extensions and the schema itself are
+    deliberately left alone: `vector` is not a trusted extension, so dropping
+    it would make the next run need a superuser that the `create_all` harness
+    never asked for.
+    """
+    with eng.begin() as conn:
+        tables = conn.execute(
+            text("SELECT tablename FROM pg_tables WHERE schemaname = current_schema()")
+        ).scalars().all()
+        if tables:
+            names = ", ".join(f'"{t}"' for t in tables)
+            conn.execute(text(f"DROP TABLE {names} CASCADE"))
+
+        enums = conn.execute(
+            text(
+                "SELECT t.typname FROM pg_type t "
+                "JOIN pg_namespace n ON n.oid = t.typnamespace "
+                "WHERE t.typtype = 'e' AND n.nspname = current_schema()"
+            )
+        ).scalars().all()
+        for name in enums:
+            conn.execute(text(f'DROP TYPE "{name}" CASCADE'))
+
+
+def _build_schema(eng: Engine) -> None:
+    """Build the schema by running the migrations, not `Base.metadata.create_all`.
+
+    Whatever `alembic/versions/` produces is what the tests run against, so a
+    model that has drifted from the migration history fails the suite instead
+    of passing against a schema no deploy would ever produce.
+    """
+    from alembic import command
+    from alembic.config import Config
+
+    _empty_the_database(eng)
+
+    # Built without the ini file: `alembic.ini` carries a `fileConfig` logging
+    # section, and applying it here would disable every logger pytest and the
+    # rest of the suite have already set up.
+    cfg = Config()
+    # Absolute, so the suite migrates the same tree whether pytest was started
+    # from `backend/` or from the repo root.
+    cfg.set_main_option("script_location", str(BACKEND / "alembic"))
+    # Taken off the engine rather than passed in alongside it, so there is no
+    # second copy of the URL that could disagree with the database being wiped.
+    cfg.attributes["db_url"] = eng.url.render_as_string(hide_password=False)
+    command.upgrade(cfg, "head")
+
+
 @pytest.fixture(scope="session")
 def engine(database_url):
-    """Point the whole process at the throwaway database and create the schema."""
+    """Point the whole process at the throwaway database and build its schema."""
     eng = db_module.configure(database_url)
-    with eng.begin() as conn:
-        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-    db_module.Base.metadata.create_all(eng)
+    _build_schema(eng)
     try:
         yield eng
     finally:
