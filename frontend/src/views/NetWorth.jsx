@@ -1,6 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
-import { api, fmt } from '../api'
-import { thisMonth } from '../components/MonthSelector'
+import { useMemo, useState } from 'react'
+import { useOutletContext } from 'react-router-dom'
+import { fmt } from '../api'
+import { keys, useResource } from '../resource'
+import ErrorCard from '../components/ErrorCard'
+import { monthShortYear } from '../format'
 
 const STORAGE_KEY = 'budget-app:networth-projection'
 
@@ -27,21 +30,15 @@ function saveProjection(p) {
 }
 
 export default function NetWorth() {
-  const [data, setData] = useState(null)
-  const [dash, setDash] = useState(null)
-  const [history, setHistory] = useState([])
-  const [err, setErr] = useState('')
+  const { month } = useOutletContext()
+  const netWorthRes = useResource(keys.networth())
+  const dashRes = useResource(keys.dashboard(month))
   const [proj, setProj] = useState(loadProjection)
 
-  useEffect(() => {
-    // networth() also captures this month's snapshot, so fetch history after it
-    // resolves to include the latest point.
-    api.networth()
-      .then(d => { setData(d); return api.networthHistory() })
-      .then(setHistory)
-      .catch(e => setErr(String(e)))
-    api.dashboard(thisMonth()).then(setDash).catch(() => {})
-  }, [])
+  const data = netWorthRes.data
+  // The runway is a nice-to-have on top of the position: a failed dashboard
+  // read costs that panel, not the page.
+  const dash = dashRes.data
 
   // Monthly NEEDS = bare-bones survival budget for the runway: housing + any
   // scheduled bill (non-default due day, e.g. insurance) + a groceries
@@ -59,7 +56,7 @@ export default function NetWorth() {
         const groceries = /grocer/i.test(f.name)
         return scheduledBill || groceries || carPayment
       })
-      .reduce((s, f) => s + Number(f.assigned_this_month || 0), 0)
+      .reduce((s, f) => s + (f.assigned_this_month || 0), 0)
   }, [dash])
 
   function patch(k, v) {
@@ -70,15 +67,15 @@ export default function NetWorth() {
     })
   }
 
-  if (err) return <div className="card"><span className="bad">{err}</span></div>
+  if (netWorthRes.error) return <ErrorCard error={netWorthRes.error} />
   if (!data) return <div className="muted">Loading…</div>
 
-  const total = Number(data.total)
-  const liquid = Number(data.liquid)
-  const investment = Number(data.investment)
-  const emergency = Number(data.emergency_fund || 0)
-  const debt = Number(data.credit_debt)
-  const loan = Number(data.loan_debt || 0)
+  const total = data.total
+  const liquid = data.liquid
+  const investment = data.investment
+  const emergency = data.emergency_fund || 0
+  const debt = data.credit_debt
+  const loan = data.loan_debt || 0
 
   return (
     <div>
@@ -133,14 +130,7 @@ export default function NetWorth() {
         <span className="sub">monthly snapshots</span>
       </div>
       <div className="card">
-        {history.length < 2 ? (
-          <div className="muted small">
-            Tracking starts now — a snapshot is saved each month you open this page.
-            Come back next month to see the trend line.
-          </div>
-        ) : (
-          <NetWorthTrend history={history} />
-        )}
+        <NetWorthOverTime />
       </div>
 
       {/* Emergency-fund runway */}
@@ -288,8 +278,27 @@ function ProjToggle({ label, checked, onChange }) {
   )
 }
 
+/**
+ * Rendered below the net-worth read's own guard, and only once it has landed —
+ * reading `/networth` is what writes this month's snapshot, so asking for the
+ * history before then would leave the latest point out of the line.
+ */
+function NetWorthOverTime() {
+  const { data } = useResource(keys.networthHistory())
+  const history = data || []
+  if (history.length < 2) {
+    return (
+      <div className="muted small">
+        Tracking starts now — a snapshot is saved each month you open this page.
+        Come back next month to see the trend line.
+      </div>
+    )
+  }
+  return <NetWorthTrend history={history} />
+}
+
 function NetWorthTrend({ history }) {
-  const pts = history.map(h => ({ month: h.month, value: Number(h.total) }))
+  const pts = history.map(h => ({ month: h.month, value: h.total }))
   const first = pts[0].value
   const last = pts[pts.length - 1].value
   const change = last - first
@@ -306,16 +315,12 @@ function NetWorthTrend({ history }) {
   })
   const line = 'M ' + coords.map(([x, y]) => `${x},${y}`).join(' L ')
   const area = `${line} L ${coords[coords.length - 1][0]},${h - pad} L ${pad},${h - pad} Z`
-  const fmtMonth = (iso) => {
-    const [y, m] = iso.split('-').map(Number)
-    return new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
-  }
   return (
     <div>
       <div className="row" style={{ alignItems: 'baseline', marginBottom: 8 }}>
         <span className="num-big">{fmt(last)}</span>
         <span className={`sub ${change >= 0 ? 'good' : 'bad'}`} style={{ marginLeft: 10 }}>
-          {change >= 0 ? '▲' : '▼'} {fmt(Math.abs(change))} since {fmtMonth(pts[0].month)}
+          {change >= 0 ? '▲' : '▼'} {fmt(Math.abs(change))} since {monthShortYear(pts[0].month)}
         </span>
       </div>
       <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
@@ -323,8 +328,8 @@ function NetWorthTrend({ history }) {
         <path d={line} fill="none" stroke="var(--accent)" strokeWidth="2" />
       </svg>
       <div className="row" style={{ justifyContent: 'space-between' }}>
-        <span className="muted small">{fmtMonth(pts[0].month)}</span>
-        <span className="muted small">{fmtMonth(pts[pts.length - 1].month)}</span>
+        <span className="muted small">{monthShortYear(pts[0].month)}</span>
+        <span className="muted small">{monthShortYear(pts[pts.length - 1].month)}</span>
       </div>
     </div>
   )

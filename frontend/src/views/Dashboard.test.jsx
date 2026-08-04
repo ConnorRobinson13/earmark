@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { renderApp, fund } from '../test/renderApp'
 import { ApiError, keys } from '../resource'
 import { thisMonth, shiftMonth } from '../components/MonthSelector'
+import { api } from '../api'
 
 const MONTH = thisMonth()
 
@@ -54,6 +55,13 @@ function routes(overrides = {}) {
   }
 }
 
+afterEach(() => vi.restoreAllMocks())
+
+/** How many times `key` has been asked for so far. */
+function reads(adapter, key) {
+  return adapter.requested.filter(k => k === key).length
+}
+
 describe('Dashboard', () => {
   it('renders against a stub adapter with no backend running', async () => {
     renderApp(routes())
@@ -102,6 +110,32 @@ describe('Dashboard', () => {
     // The unassigned figure shows twice: hero and topbar chip.
     await waitFor(() => expect(screen.getAllByText('$120.50').length).toBe(2))
     expect(screen.getByText('transaction')).toBeTruthy()
+  })
+
+  it('refetches the dashboard once for one edit, and nothing else', async () => {
+    vi.spyOn(api.monthlyMeta, 'set').mockResolvedValue({})
+    const { adapter } = renderApp(routes())
+
+    await screen.findByText('Ally savings')
+    const before = {
+      dashboard: reads(adapter, keys.dashboard(MONTH)),
+      inbox: reads(adapter, keys.inbox()),
+      accounts: reads(adapter, keys.accounts()),
+      pending: reads(adapter, keys.pendingSettlements(MONTH)),
+    }
+
+    // Planned income is the narrowest write there is: the dashboard's own
+    // plan-vs-actual cell reads it, and nothing else does.
+    fireEvent.click(screen.getByTitle('Click to edit planned income'))
+    const input = screen.getByDisplayValue('3200.00')
+    fireEvent.change(input, { target: { value: '3400' } })
+    fireEvent.blur(input)
+
+    await waitFor(() => expect(api.monthlyMeta.set).toHaveBeenCalledWith(MONTH, 3400))
+    await waitFor(() => expect(reads(adapter, keys.dashboard(MONTH))).toBe(before.dashboard + 1))
+    expect(reads(adapter, keys.inbox())).toBe(before.inbox)
+    expect(reads(adapter, keys.accounts())).toBe(before.accounts)
+    expect(reads(adapter, keys.pendingSettlements(MONTH))).toBe(before.pending)
   })
 
   it('refetches on the new key when the month changes', async () => {

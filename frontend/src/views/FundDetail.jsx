@@ -1,12 +1,12 @@
-import { Link, useParams, useOutletContext } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { api, fmt } from '../api'
-import { keys, useResource } from '../resource'
+import { keys, useInvalidate, useResource, writes } from '../resource'
 import ErrorCard from '../components/ErrorCard'
 import { Icon } from '../components/Icons'
 
 export default function FundDetail() {
   const { id } = useParams()
-  const { refresh } = useOutletContext()
+  const invalidate = useInvalidate()
   const fundRes = useResource(keys.fund(id))
   const txnsRes = useResource(keys.fundTransactions(id))
 
@@ -16,7 +16,7 @@ export default function FundDetail() {
   async function del(txId) {
     if (!confirm('Delete this transaction?')) return
     await api.transactions.delete(txId)
-    refresh()
+    invalidate(writes.ledger)
   }
 
   const error = fundRes.error || txnsRes.error
@@ -66,7 +66,7 @@ export default function FundDetail() {
               const v = e.target.value.trim()
               if (v === (fund.category || '')) return
               await api.funds.update(fund.id, { category: v || null })
-              refresh()
+              invalidate(writes.ledger)
             }}
             style={{ maxWidth: 240 }}
           />

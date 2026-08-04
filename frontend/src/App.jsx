@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react'
-import { NavLink, Route, Routes, Navigate, Outlet, useNavigate, useLocation } from 'react-router-dom'
+import { useState } from 'react'
+import { NavLink, Route, Routes, Navigate, Outlet, useNavigate } from 'react-router-dom'
 import Dashboard from './views/Dashboard'
 import QuickAdd from './views/QuickAdd'
 import Inbox from './views/Inbox'
@@ -8,10 +8,11 @@ import Planner from './views/Planner'
 import FundDetail from './views/FundDetail'
 import Settings from './views/Settings'
 import NetWorth from './views/NetWorth'
-import { thisMonth, monthLabel, shiftMonth } from './components/MonthSelector'
+import { thisMonth, shiftMonth } from './components/MonthSelector'
+import { monthLabel } from './format'
 import { Icon } from './components/Icons'
 import { fmt } from './api'
-import { useResourceStore } from './resource'
+import { keys, useResource } from './resource'
 
 export default function App() {
   return (
@@ -31,34 +32,35 @@ export default function App() {
   )
 }
 
+/**
+ * The month is the only thing the shell owns and hands down. The nav badge and
+ * the unassigned chip used to live here too, pushed up from the dashboard's
+ * loader through setter props, which meant they were blank until the dashboard
+ * had mounted and wrong the moment anything else changed them. Both now read
+ * their own key.
+ */
 function Shell() {
   const [month, setMonth] = useState(thisMonth())
-  const [unassigned, setUnassigned] = useState(null)
-  const [inboxCount, setInboxCount] = useState(0)
-  const [refreshTick, setRefreshTick] = useState(0)
-  const store = useResourceStore()
-  // Migrated views refetch from the invalidation; the rest still watch the tick.
-  const refresh = useCallback(() => {
-    store.invalidate()
-    setRefreshTick(t => t + 1)
-  }, [store])
-
-  const ctx = { month, setMonth, unassigned, setUnassigned, inboxCount, setInboxCount, refreshTick, refresh }
 
   return (
     <div className="app">
-      <NavDock inboxCount={inboxCount} />
+      <NavDock />
       <main className="main">
-        <Topbar month={month} setMonth={setMonth} unassigned={unassigned} />
+        <Topbar month={month} setMonth={setMonth} />
         <div className="main-inner">
-          <Outlet context={ctx} />
+          <Outlet context={{ month, setMonth }} />
         </div>
       </main>
     </div>
   )
 }
 
-function NavDock({ inboxCount }) {
+function NavDock() {
+  // Its own read of the inbox, so the badge is right on first paint and drops
+  // the moment an item is approved — from any route, dashboard or not.
+  const { data } = useResource(keys.inbox())
+  const inboxCount = data?.length ?? 0
+
   const items = [
     { to: '/',         label: 'Dashboard', icon: 'home'  },
     { to: '/inbox',    label: 'Inbox',     icon: 'inbox', badge: inboxCount || null },
@@ -89,13 +91,16 @@ function NavDock({ inboxCount }) {
   )
 }
 
-function Topbar({ month, setMonth, unassigned }) {
+function Topbar({ month, setMonth }) {
   const nav = useNavigate()
   const isCurrent = month === thisMonth()
 
-  const onDashboard = useLocation().pathname === '/'
-  const u = Number(unassigned)
-  const showChip = onDashboard && unassigned != null && Number.isFinite(u)
+  // The same key the dashboard reads, so the two share one round trip and
+  // cannot disagree. The chip used to be hidden off the dashboard route to
+  // conceal that it was showing whatever month the dashboard last loaded.
+  const { data } = useResource(keys.dashboard(month))
+  const u = data?.unassigned
+  const showChip = Number.isFinite(u)
   const tone = Math.abs(u) < 0.01 ? 'zero' : u > 0 ? 'pos' : 'neg'
 
   return (

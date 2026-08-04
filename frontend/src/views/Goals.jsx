@@ -1,30 +1,28 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import { api, fmt, todayISO } from '../api'
+import { keys, useInvalidate, useResource, writes } from '../resource'
+import ErrorCard from '../components/ErrorCard'
+import GoalSummary, { goalProgress } from '../components/GoalSummary'
+import { dateInMonth } from '../components/MonthSelector'
 import { Icon } from '../components/Icons'
 
 export default function Goals() {
-  const { refresh, refreshTick } = useOutletContext()
-  const [funds, setFunds] = useState([])
-  const [accounts, setAccounts] = useState([])
-  const [unassignedAmt, setUnassignedAmt] = useState(0)
-  const [err, setErr] = useState('')
+  const { month } = useOutletContext()
+  // The dashboard read already carries every fund enriched for the selected
+  // month, so this page follows the top bar without a second fund list.
+  const dashRes = useResource(keys.dashboard(month))
+  const accountsRes = useResource(keys.accounts())
   const [showAdd, setShowAdd] = useState(false)
   const [contributingId, setContributingId] = useState(null)
 
-  async function load() {
-    try {
-      const [all, dash, accts] = await Promise.all([
-        api.funds.list(), api.dashboard(), api.accounts.list(),
-      ])
-      setFunds(all.filter(f => f.kind === 'goal'))
-      setUnassignedAmt(Number(dash.unassigned))
-      setAccounts(accts)
-    } catch (e) { setErr(String(e)) }
-  }
-  useEffect(() => { load() }, [refreshTick])
+  if (dashRes.error) return <ErrorCard error={dashRes.error} />
+  if (!dashRes.data) return <div className="muted">Loading…</div>
 
-  if (err) return <div className="card"><span className="bad">{err}</span></div>
+  const goals = dashRes.data.funds.filter(f => f.kind === 'goal')
+  const unassigned = dashRes.data.unassigned
+  // A failed accounts read costs the backing-account picker, not the page.
+  const accounts = accountsRes.data || []
 
   return (
     <div>
@@ -37,18 +35,18 @@ export default function Goals() {
         </button>
       </div>
 
-      {funds.length === 0 && <div className="card muted">No goals yet.</div>}
+      {goals.length === 0 && <div className="card muted">No goals yet.</div>}
 
       <div className="goal-grid">
-        {funds.map(g => (
+        {goals.map(g => (
           <GoalCard
             key={g.id}
             goal={g}
+            month={month}
             accounts={accounts}
-            unassigned={unassignedAmt}
+            unassigned={unassigned}
             expanded={contributingId === g.id}
             onToggleContribute={() => setContributingId(id => id === g.id ? null : g.id)}
-            onChange={() => { load(); refresh() }}
           />
         ))}
       </div>
@@ -57,75 +55,42 @@ export default function Goals() {
         <NewGoalModal
           accounts={accounts}
           onClose={() => setShowAdd(false)}
-          onCreated={() => { setShowAdd(false); load(); refresh() }}
+          onCreated={() => setShowAdd(false)}
         />
       )}
     </div>
   )
 }
 
-function GoalCard({ goal, accounts, unassigned, expanded, onToggleContribute, onChange }) {
-  const isContribution = goal.goal_type === 'contribution'
-  const isDebt = goal.goal_type === 'debt'
-  const target = Number(goal.target || 0)
-  const progressValue = isContribution
-    ? Number(goal.contribution_ytd || 0)
-    : Number(goal.balance)
-  const pct = target > 0 ? Math.min(100, Math.max(0, (progressValue / target) * 100)) : 0
-  const remaining = Math.max(0, target - progressValue)
-  const actualMin = isDebt && goal.min_payment != null ? Number(goal.min_payment) : null
-  const minPay = actualMin != null ? actualMin : (isDebt ? minPaymentNeeded(remaining, goal.target_date) : null)
+function GoalCard({ goal, month, accounts, unassigned, expanded, onToggleContribute }) {
+  const invalidate = useInvalidate()
+  const progress = goalProgress(goal, month)
+  const { isDebt, remaining, fixedPayment, minMonthly } = progress
   const backingAcct = accounts.find(a => a.id === goal.backed_by_account_id)
 
   async function del() {
-    const msg = balance !== 0
-      ? `Delete "${goal.name}"? Balance of ${fmt(balance)} will be swept back to Unassigned.`
+    const msg = goal.balance !== 0
+      ? `Delete "${goal.name}"? Balance of ${fmt(goal.balance)} will be swept back to Unassigned.`
       : `Delete "${goal.name}"?`
     if (!confirm(msg)) return
     await api.funds.archive(goal.id)
-    onChange()
+    invalidate(writes.ledger)
   }
 
   async function setAccount(accountIdStr) {
     const id = accountIdStr ? Number(accountIdStr) : null
     await api.funds.update(goal.id, { backed_by_account_id: id })
-    onChange()
+    invalidate(writes.ledger)
   }
 
   return (
     <div className="goal-card" style={{ cursor: 'default' }}>
-      <div>
-        <div className="row" style={{ gap: 6, alignItems: 'center' }}>
-          <div className="name">{goal.name}</div>
-          <span className={`goal-badge ${isContribution ? 'contribution' : isDebt ? 'debt' : 'savings'}`}>
-            {isContribution ? 'contribution' : isDebt ? 'debt' : 'savings'}
-          </span>
-        </div>
-        <div className="deadline">
-          {goal.target_date
-            ? `${isDebt ? 'payoff by' : 'by'} ${new Date(goal.target_date + 'T00:00:00').toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
-            : 'no deadline'}
-        </div>
-      </div>
+      <GoalSummary goal={goal} progress={progress} />
 
-      <div className="amount-row">
-        <div className="big">{fmt(isDebt ? remaining : progressValue)}</div>
-        <div className="target">
-          {isContribution ? `of ${fmt(target)} ${goal.contribution_year ?? ''}` : isDebt ? `of ${fmt(target)} owed` : `of ${fmt(target)}`}
-        </div>
-      </div>
-
-      <div className="progress-track">
-        <div className="progress-fill" style={{ width: `${pct}%` }} />
-      </div>
-      <div className="footer-row">
-        <span>{pct.toFixed(0)}% {isContribution ? 'contributed' : isDebt ? 'paid off' : 'complete'}</span>
-        <span>{isDebt ? (remaining > 0 ? `${fmt(remaining)} left` : 'paid off 🎉') : `${fmt(remaining)} to go`}</span>
-      </div>
       {isDebt && remaining > 0 && (
         <div className="goal-min small muted" style={{ marginTop: 6 }}>
-          {minPay != null
-            ? <>minimum <span className="num">{fmt(minPay)}</span>/mo{actualMin != null ? '' : ' to pay off on time'}</>
+          {minMonthly != null
+            ? <>minimum <span className="num">{fmt(minMonthly)}</span>/mo{fixedPayment != null ? '' : ' to pay off on time'}</>
             : <>set a payoff date to see the minimum payment</>}
         </div>
       )}
@@ -164,16 +129,18 @@ function GoalCard({ goal, accounts, unassigned, expanded, onToggleContribute, on
       {expanded && (
         <ContributeForm
           goal={goal}
+          month={month}
           accounts={accounts}
           unassigned={unassigned}
-          onDone={() => { onToggleContribute(); onChange() }}
+          onDone={onToggleContribute}
         />
       )}
     </div>
   )
 }
 
-function ContributeForm({ goal, accounts, unassigned, onDone }) {
+function ContributeForm({ goal, month, accounts, unassigned, onDone }) {
+  const invalidate = useInvalidate()
   const isContribution = goal.goal_type === 'contribution'
   const isDebt = goal.goal_type === 'debt'
   const [amount, setAmount] = useState('')
@@ -211,16 +178,19 @@ function ContributeForm({ goal, accounts, unassigned, onDone }) {
           from_account_id: fromAccountId,
           settled_at: contribDate,
         })
+        invalidate(writes.balances)
       } else if (source === 'unassigned') {
         await api.transactions.assign({
-          fund_id: goal.id, amount: n, date: todayISO(),
+          fund_id: goal.id, amount: n, date: dateInMonth(month),
           notes: 'Goal contribution',
         })
+        invalidate(writes.ledger)
       } else {
         await api.transactions.quickAdd({
-          fund_id: goal.id, amount: n, date: todayISO(),
+          fund_id: goal.id, amount: n, date: dateInMonth(month),
           merchant: 'Direct deposit', type: 'income',
         })
+        invalidate(writes.ledger)
       }
       onDone()
     } catch (e) { setErr(String(e)) }
@@ -280,18 +250,8 @@ function ContributeForm({ goal, accounts, unassigned, onDone }) {
   )
 }
 
-// Minimum monthly payment to clear `remaining` by `targetDate`, counting the
-// current month as the first payment. Principal-only — ignores interest, same
-// as the goals' "min to hit target" figure.
-function minPaymentNeeded(remaining, targetDate) {
-  if (!targetDate || remaining <= 0) return null
-  const now = new Date()
-  const [ty, tm] = targetDate.split('-').map(Number)
-  const months = Math.max(1, (ty - now.getFullYear()) * 12 + (tm - (now.getMonth() + 1)) + 1)
-  return remaining / months
-}
-
 function NewGoalModal({ accounts, onClose, onCreated }) {
+  const invalidate = useInvalidate()
   const [name, setName] = useState('')
   const [goalType, setGoalType] = useState('savings')  // 'savings' | 'contribution'
   const [target, setTarget] = useState('')
@@ -332,6 +292,7 @@ function NewGoalModal({ accounts, onClose, onCreated }) {
           type: 'income',
         })
       }
+      invalidate(writes.ledger)
       onCreated()
     } catch (e) { setErr(String(e)); setBusy(false) }
   }
