@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import time
 from datetime import date
+from decimal import Decimal
 
 import pytest
 from sqlalchemy import text
@@ -48,13 +49,15 @@ class FakeOllama:
     `up` flips the service on and off mid-test; `delay` makes it slow rather
     than merely absent, which is the case a connection-refused error would hide.
     `fail_after` lets it answer a few calls and then fall over, which is how a
-    backfill pass finds out mid-flight that the model has gone away.
+    backfill pass finds out mid-flight that the model has gone away. `blank_for`
+    covers the other answer a healthy model can give: a 200 with no vector in it.
     """
 
     def __init__(self, *, up: bool = True, delay: float = 0.0, fail_after: int = -1):
         self.up = up
         self.delay = delay
         self.fail_after = fail_after
+        self.blank_for: set[str] = set()
         self.prompts: list[str] = []
 
     def __call__(self, url: str, *, json: dict | None = None, timeout: float = 0.0):
@@ -65,6 +68,8 @@ class FakeOllama:
             time.sleep(min(self.delay, timeout or self.delay))
         if not self.up or len(self.prompts) > self.fail_after >= 0:
             raise RuntimeError("ollama is down")
+        if prompt in self.blank_for:
+            return _FakeResponse([])
         return _FakeResponse(_vector_for(prompt))
 
 
@@ -73,6 +78,14 @@ def ollama(monkeypatch) -> FakeOllama:
     fake = FakeOllama()
     monkeypatch.setattr("app.services.embeddings.httpx.post", fake)
     return fake
+
+
+@pytest.fixture()
+def hanging_ollama(ollama) -> FakeOllama:
+    """Present but wedged — the case that used to cost a write the full timeout."""
+    ollama.up = False
+    ollama.delay = 5.0
+    return ollama
 
 
 def _embedding_of(engine, txn_id: int):
@@ -97,10 +110,10 @@ def _quick_add(client, fund_id: int, merchant: str, amount: str = "12.00") -> in
     return resp.json()["id"]
 
 
-def test_quick_add_returns_promptly_while_the_embedding_service_hangs(client, ollama):
+def test_quick_add_returns_promptly_while_the_embedding_service_hangs(
+    client, hanging_ollama
+):
     """The acceptance criterion: posting does not block on the embedding call."""
-    ollama.up = False
-    ollama.delay = 5.0
     fund_id = client.post("/funds", json={"name": "Coffee"}).json()["id"]
 
     started = time.monotonic()
@@ -108,10 +121,10 @@ def test_quick_add_returns_promptly_while_the_embedding_service_hangs(client, ol
     elapsed = time.monotonic() - started
 
     assert elapsed < 1.0, f"quick-add waited {elapsed:.1f}s on the embedding service"
-    assert not ollama.prompts, "posting called the embedding service"
+    assert not hanging_ollama.prompts, "posting called the embedding service"
 
 
-def test_inbox_approve_does_not_call_the_embedding_service(client, ollama):
+def test_inbox_approve_does_not_call_the_embedding_service(client, hanging_ollama):
     """The other path a person waits on posts through the same service."""
     from app.db import new_session
     from app.models import PlaidInbox
@@ -123,7 +136,7 @@ def test_inbox_approve_does_not_call_the_embedding_service(client, ollama):
             plaid_transaction_id="plaid-approve-1",
             raw={},
             merchant="Trader Joe's",
-            amount=42,
+            amount=Decimal("42.00"),
             date=date.today().replace(day=15),
         )
         session.add(item)
@@ -132,16 +145,13 @@ def test_inbox_approve_does_not_call_the_embedding_service(client, ollama):
     finally:
         session.close()
 
-    ollama.up = False
-    ollama.delay = 5.0
-
     started = time.monotonic()
     resp = client.post(f"/inbox/{inbox_id}/approve", json={"fund_id": fund_id})
     elapsed = time.monotonic() - started
 
     assert resp.status_code == 200, resp.text
     assert elapsed < 1.0, f"approve waited {elapsed:.1f}s on the embedding service"
-    assert not ollama.prompts, "approving called the embedding service"
+    assert not hanging_ollama.prompts, "approving called the embedding service"
 
 
 def test_a_row_posted_while_ollama_was_down_is_embedded_once_it_returns(
@@ -198,6 +208,47 @@ def test_backfill_stops_at_the_first_row_the_service_cannot_answer(client, ollam
     assert client.post("/suggest", json={"merchant": "Blue Bottle"}).status_code == 200
 
     assert len(ollama.prompts) == 3, ollama.prompts
+
+
+def test_a_row_the_model_has_no_vector_for_does_not_wedge_the_older_ones(
+    client, engine, ollama
+):
+    """The scan runs newest-first, so a stuck newest row would starve the rest."""
+    fund_id = client.post("/funds", json={"name": "Coffee"}).json()["id"]
+    oldest = _quick_add(client, fund_id, "Blue Bottle")
+    _quick_add(client, fund_id, "Trader Joe's")
+    ollama.blank_for = {"Unembeddable"}
+    _quick_add(client, fund_id, "Unembeddable")
+
+    assert client.post("/suggest", json={"merchant": "anything"}).status_code == 200
+
+    assert _embedding_of(engine, oldest) is not None
+
+
+def test_a_whitespace_only_merchant_is_never_offered_to_the_model(client, ollama):
+    """The client strips before sending, so there would be nothing to embed."""
+    fund_id = client.post("/funds", json={"name": "Coffee"}).json()["id"]
+    _quick_add(client, fund_id, "   ")
+
+    assert client.post("/suggest", json={"merchant": "Blue Bottle"}).status_code == 200
+
+    assert ollama.prompts == ["Blue Bottle"]
+
+
+def test_the_backfill_stops_when_it_runs_out_of_budget(client, ollama):
+    """It runs inside a request, so it is bounded by time, not by completeness."""
+    from app.services.embeddings import backfill_missing_embeddings
+
+    fund_id = client.post("/funds", json={"name": "Coffee"}).json()["id"]
+    for n in range(6):
+        _quick_add(client, fund_id, f"Merchant {n}")
+
+    ollama.delay = 0.2
+    filled = backfill_missing_embeddings(budget_seconds=0.3)
+
+    assert 0 < filled < 6, f"backfill filled {filled} of 6 rows"
+    # What it didn't reach is still pending, so the next pass picks it up.
+    assert backfill_missing_embeddings(budget_seconds=10.0) == 6 - filled
 
 
 def test_transactions_without_a_merchant_are_never_embedded(client, ollama):

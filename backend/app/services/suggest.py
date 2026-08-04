@@ -12,8 +12,7 @@ from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..models import Fund
-from .embeddings import INTERACTIVE_EMBED_TIMEOUT, embed_text_or_none
-from .transactions import backfill_missing_embeddings
+from .embeddings import backfill_missing_embeddings, embed_text_or_none
 
 log = logging.getLogger(__name__)
 
@@ -28,7 +27,7 @@ def suggest_fund(
     if not merchant:
         return None, None, "none"
 
-    vec = embed_text_or_none(merchant, timeout=INTERACTIVE_EMBED_TIMEOUT)
+    vec = embed_text_or_none(merchant)
     if vec is not None:
         # Writes leave `embedding` NULL so posting doesn't wait on Ollama, which
         # makes recent transactions invisible to the search below — a neighbour

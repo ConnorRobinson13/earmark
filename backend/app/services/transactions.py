@@ -4,36 +4,20 @@ Encapsulates the rules for each transaction type so that routers and importers
 (Plaid inbox, manual quick-add) share the same logic.
 
 Posting never computes an embedding. The row lands with `embedding` NULL and
-`backfill_missing_embeddings` fills it in later, so a slow or unreachable Ollama
-costs a backfill pass instead of up to ten seconds on every write — which used
-to be paid once per row on the bulk import and Plaid sync loops.
+`embeddings.backfill_missing_embeddings` fills it in later, so a slow or
+unreachable Ollama costs a backfill pass instead of up to ten seconds on every
+write — which used to be paid once per row on the bulk import and Plaid sync
+loops. Nothing in here reaches for the embedding client any more.
 """
 from __future__ import annotations
 
-import logging
-import time
 from datetime import date
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..db import new_session
 from ..models import Transaction, TxType
-from .embeddings import INTERACTIVE_EMBED_TIMEOUT, embed_text_or_none
-
-log = logging.getLogger(__name__)
-
-# The backfill runs inside a request somebody is waiting on, so it is bounded by
-# time rather than by completeness: whatever it doesn't reach, the next pass
-# picks up. Checked between rows, so a single slow row can overshoot it by up to
-# one `INTERACTIVE_EMBED_TIMEOUT`.
-BACKFILL_BUDGET_SECONDS = 3.0
-
-# Cap on rows pulled per pass. A bound on the query, not on the work — the
-# budget above is what actually stops us.
-_BACKFILL_BATCH = 500
 
 
 def _post(
@@ -61,53 +45,6 @@ def _post(
     db.add(t)
     db.flush()
     return t
-
-
-def backfill_missing_embeddings(
-    *, budget_seconds: float = BACKFILL_BUDGET_SECONDS
-) -> int:
-    """Embed transactions that were posted without one. Returns rows filled.
-
-    Owns its session and commits it, rather than borrowing the caller's. The
-    caller is `suggest_fund`, which serves read-only requests that never commit;
-    work this expensive shouldn't be thrown away because of that, and it has no
-    business riding along inside somebody else's transaction either.
-
-    Newest first: a recent transaction is the likeliest useful neighbour, so if
-    the budget runs out it should run out on the old rows.
-
-    Stops at the first row the service can't answer for. When Ollama is down
-    every row fails identically, and one refused connection is enough to know
-    the rest of the pass is wasted.
-    """
-    started = time.monotonic()
-    filled = 0
-    db = new_session()
-    try:
-        pending = db.scalars(
-            select(Transaction)
-            .where(Transaction.embedding.is_(None), Transaction.merchant != "")
-            .order_by(Transaction.id.desc())
-            .limit(_BACKFILL_BATCH)
-        ).all()
-        for t in pending:
-            if time.monotonic() - started >= budget_seconds:
-                log.info(
-                    "embedding backfill out of budget after %d rows, %d still pending",
-                    filled,
-                    len(pending) - filled,
-                )
-                break
-            vec = embed_text_or_none(t.merchant, timeout=INTERACTIVE_EMBED_TIMEOUT)
-            if vec is None:
-                break
-            t.embedding = vec
-            filled += 1
-        if filled:
-            db.commit()
-    finally:
-        db.close()
-    return filled
 
 
 def post_expense(
