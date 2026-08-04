@@ -37,7 +37,6 @@ export default function Settings() {
 
   return (
     <div>
-
       <div className="sec-head" style={{ marginTop: 0 }}>
         <h2>Accounts</h2>
         <span className="sub">checking, savings, credit</span>

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useOutletContext } from 'react-router-dom'
 import { api } from '../api'
 import { keys, useInvalidate, useResource, writes } from '../resource'
+import ErrorCard from '../components/ErrorCard'
 import { dateInMonth } from '../components/MonthSelector'
 import { Icon } from '../components/Icons'
 
@@ -14,8 +15,14 @@ export default function QuickAdd() {
   const [fundId, setFundId] = useState('')
   const [type, setType] = useState('expense')
   // Files the transaction under the month in the top bar, so recording against
-  // an archived month doesn't file it under today.
+  // an archived month doesn't file it under today. Changing months from behind
+  // the modal re-dates the field: you asked for a different month.
   const [date, setDate] = useState(() => dateInMonth(month))
+  const [datedFor, setDatedFor] = useState(month)
+  if (month !== datedFor) {
+    setDatedFor(month)
+    setDate(dateInMonth(month))
+  }
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [suggestSrc, setSuggestSrc] = useState('')
@@ -116,9 +123,8 @@ export default function QuickAdd() {
           <input type="date" value={date} onChange={e => setDate(e.target.value)} />
         </div>
 
-        {(err || fundsRes.error) && (
-          <div className="bad small">{err || String(fundsRes.error.detail ?? fundsRes.error)}</div>
-        )}
+        {err && <div className="bad small">{err}</div>}
+        {fundsRes.error && <ErrorCard error={fundsRes.error} />}
 
         <div className="actions">
           <button type="button" className="btn ghost" onClick={close}>Cancel</button>

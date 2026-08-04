@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { renderApp, fund, shellRoutes, SHELL_KEYS } from '../test/renderApp'
 import { ApiError, keys } from '../resource'
+import { thisMonth } from '../components/MonthSelector'
 import { api } from '../api'
 
 const FUNDS = [
@@ -97,6 +98,21 @@ describe('Inbox', () => {
     await waitFor(() => {
       expect(adapter.requested.filter(k => k === keys.inbox()).length).toBe(before + 1)
     })
+  })
+
+  it('leaves the ledger alone when an item is only rejected', async () => {
+    vi.spyOn(api.inbox, 'reject').mockResolvedValue(null)
+    const { adapter } = renderApp(routes(), { route: '/inbox' })
+
+    await screen.findByText('Trader Joes')
+    const dashboardBefore = adapter.requested.filter(k => k === keys.dashboard(thisMonth())).length
+
+    fireEvent.click(screen.getByRole('button', { name: /Reject/ }))
+
+    // A rejection drops the row and nothing else — no money moved.
+    await waitFor(() => expect(api.inbox.reject).toHaveBeenCalledWith(11))
+    await waitFor(() => expect(screen.getByText('Shell')).toBeTruthy())
+    expect(adapter.requested.filter(k => k === keys.dashboard(thisMonth())).length).toBe(dashboardBefore)
   })
 
   it('says so when the inbox read fails', async () => {

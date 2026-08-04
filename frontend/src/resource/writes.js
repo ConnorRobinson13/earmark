@@ -29,11 +29,19 @@ export const writes = {
   /** An assignment, a transaction, a fund created or ended, a template applied. */
   ledger: LEDGER,
 
-  /** An inbox item approved or rejected: it leaves the inbox, and an approval lands in the ledger. */
-  inboxDecision: ['/inbox', ...LEDGER],
+  /** An inbox item approved: it leaves the inbox and lands in the ledger as a transaction. */
+  inboxApproved: ['/inbox', ...LEDGER],
 
-  /** Planned income for a month. The dashboard's plan-vs-actual cell is the only reader. */
-  plannedIncome: ['/dashboard'],
+  /** An inbox item rejected: the row is dropped and nothing reaches the ledger. */
+  inboxRejected: ['/inbox'],
+
+  /**
+   * Planned income for a month. The dashboard's plan-vs-actual cell is the
+   * only reader — the trailing `?` keeps this off `/dashboard/trends`, which
+   * charts past spend and cannot move when a target changes. Every dashboard
+   * read is month-scoped, so every one of their keys carries the query string.
+   */
+  plannedIncome: ['/dashboard?'],
 
   /** An account added, edited, retyped or deleted; goal money marked as physically moved. */
   balances: BALANCES,

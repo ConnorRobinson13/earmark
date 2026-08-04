@@ -59,11 +59,11 @@ export default function Inbox() {
   const initials = (item.merchant || '?').trim().slice(0, 2).toUpperCase()
 
   /** Hide the item we just ruled on, and pull the fresh list in behind it. */
-  function settled() {
+  function settled(decision) {
     setDecided(d => new Set(d).add(item.id))
     setOverride('')
     setIncomeMode('paycheck')
-    invalidate(writes.inboxDecision)
+    invalidate(decision)
   }
 
   async function approve() {
@@ -75,7 +75,7 @@ export default function Inbox() {
         if (!chosenId) { setBusy(false); return }
         await api.inbox.approve(item.id, Number(chosenId), false)
       }
-      settled()
+      settled(writes.inboxApproved)
     } catch (e) { setActionErr(e) }
     finally { setBusy(false) }
   }
@@ -84,7 +84,8 @@ export default function Inbox() {
     setBusy(true); setActionErr(null)
     try {
       await api.inbox.reject(item.id)
-      settled()
+      // A rejection only drops the row — nothing reaches the ledger.
+      settled(writes.inboxRejected)
     } catch (e) { setActionErr(e) }
     finally { setBusy(false) }
   }

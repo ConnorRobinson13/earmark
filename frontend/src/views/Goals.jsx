@@ -4,7 +4,7 @@ import { api, fmt, todayISO } from '../api'
 import { keys, useInvalidate, useResource, writes } from '../resource'
 import ErrorCard from '../components/ErrorCard'
 import GoalSummary, { goalProgress } from '../components/GoalSummary'
-import { dateInMonth } from '../components/MonthSelector'
+import { dateInMonth, thisMonth } from '../components/MonthSelector'
 import { Icon } from '../components/Icons'
 
 export default function Goals() {
@@ -19,6 +19,7 @@ export default function Goals() {
   if (dashRes.error) return <ErrorCard error={dashRes.error} />
   if (!dashRes.data) return <div className="muted">Loading…</div>
 
+  const isPast = month < thisMonth()
   const goals = dashRes.data.funds.filter(f => f.kind === 'goal')
   const unassigned = dashRes.data.unassigned
   // A failed accounts read costs the backing-account picker, not the page.
@@ -30,9 +31,16 @@ export default function Goals() {
         <h2>Goals</h2>
         <span className="sub">long-term savings buckets</span>
         <div className="spacer" />
-        <button className="btn primary sm" onClick={() => setShowAdd(true)}>
-          <Icon name="plus" /> New goal
-        </button>
+        {isPast ? (
+          // A goal created today did not exist in a month that has already
+          // ended, so it would not come back in this month's read. Say the
+          // month is an archive rather than let one vanish on creation.
+          <span style={{ fontSize: 12, color: 'var(--warn)' }}>read-only archive</span>
+        ) : (
+          <button className="btn primary sm" onClick={() => setShowAdd(true)}>
+            <Icon name="plus" /> New goal
+          </button>
+        )}
       </div>
 
       {goals.length === 0 && <div className="card muted">No goals yet.</div>}

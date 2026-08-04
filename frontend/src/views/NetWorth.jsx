@@ -282,6 +282,11 @@ function ProjToggle({ label, checked, onChange }) {
  * Rendered below the net-worth read's own guard, and only once it has landed —
  * reading `/networth` is what writes this month's snapshot, so asking for the
  * history before then would leave the latest point out of the line.
+ *
+ * That ordering holds on mount, which is the only path that matters here: this
+ * page has no writes of its own. A write made elsewhere invalidates the
+ * `/networth` prefix, which reaches both keys at once and races — leaving the
+ * last point one edit behind until the page is opened again.
  */
 function NetWorthOverTime() {
   const { data } = useResource(keys.networthHistory())

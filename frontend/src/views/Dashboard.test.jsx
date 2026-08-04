@@ -136,6 +136,8 @@ describe('Dashboard', () => {
     expect(reads(adapter, keys.inbox())).toBe(before.inbox)
     expect(reads(adapter, keys.accounts())).toBe(before.accounts)
     expect(reads(adapter, keys.pendingSettlements(MONTH))).toBe(before.pending)
+    // Not even the trends chart beside it: a target cannot change past spend.
+    expect(reads(adapter, keys.dashboardTrends(6))).toBe(1)
   })
 
   it('refetches on the new key when the month changes', async () => {
