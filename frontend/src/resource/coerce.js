@@ -29,7 +29,7 @@ const TEXT_FIELDS = new Set([
   'month', 'date', 'target_date', 'settled_at', 'created_at', 'archived_at',
   'last_synced_at',
   // opaque identifiers
-  'mask', 'plaid_transaction_id', 'plaid_item_id',
+  'mask', 'plaid_transaction_id', 'plaid_item_id', 'item_id',
 ])
 
 // Plain base-10 integers and decimals only. Deliberately does NOT match:

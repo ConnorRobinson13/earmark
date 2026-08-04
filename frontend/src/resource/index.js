@@ -8,10 +8,13 @@
  * stringified exception, requests dropped on unmount and on key change, and
  * `invalidate(prefix)` to push fresh data to whoever is reading it.
  *
- * Writes still go through `api` — this module owns reads.
+ * Writes still go through `api` — this module owns reads. What a write makes
+ * stale is declared in `writes.js`: call `useInvalidate()(writes.ledger)` once
+ * the write settles and the readers of those keys, and only those, refetch.
  */
 export { useResource } from './useResource'
 export { keys } from './keys'
+export { writes, useInvalidate } from './writes'
 export { ApiError } from './ApiError'
 export { ResourceProvider, useResourceStore } from './context'
 export { createResourceStore } from './store'

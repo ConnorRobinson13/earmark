@@ -1,7 +1,9 @@
+import { todayISO } from '../api'
+
 /**
- * Month helpers. Month strings are YYYY-MM-01 (matches backend `date` columns).
+ * Month arithmetic. Month strings are YYYY-MM-01 (matches backend `date`
+ * columns). Turning one into something a human reads is `../format`.
  */
-const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
 export function shiftMonth(monthStr, delta) {
   const [y, m] = monthStr.split('-').map(Number)
@@ -14,9 +16,16 @@ export function thisMonth() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
 }
 
-export function monthLabel(monthStr) {
-  const [y, m] = monthStr.split('-').map(Number)
-  return `${MONTHS[m - 1]} ${y}`
+/**
+ * The date to stamp a write with, for a view scoped to `month`: today when
+ * that is the current month, otherwise the first of the month being edited.
+ *
+ * Without this, editing an archived month from the top bar would file the
+ * transaction under today and it would vanish from the month you were looking
+ * at.
+ */
+export function dateInMonth(month) {
+  return !month || month === thisMonth() ? todayISO() : month
 }
 
 /**
