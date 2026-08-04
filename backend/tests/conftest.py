@@ -2,8 +2,9 @@
 
 By default the suite starts a throwaway `pgvector/pgvector:pg16` container via
 testcontainers, so `pytest` works from a clean checkout with nothing running but
-Docker. Set `TEST_DATABASE_URL` to point at an existing database instead — the
-schema is created into whatever it names, so never point it at real data.
+Docker. Set `TEST_DATABASE_URL` to point at an existing database instead — its
+public schema is dropped and rebuilt from the migrations, so never point it at
+real data.
 """
 from __future__ import annotations
 
@@ -64,13 +65,44 @@ def database_url():
         yield container.get_connection_url()
 
 
+def _build_schema(eng, url: str) -> None:
+    """Build the schema by running the migrations, not `Base.metadata.create_all`.
+
+    Whatever `alembic/versions/` produces is what the tests run against, so a
+    model that has drifted from the migration history fails the suite here
+    instead of passing against a schema no deploy would ever produce.
+
+    The public schema is dropped first because migrations are not idempotent:
+    against a database left over from an earlier run — or built by the
+    `create_all` this replaces — `upgrade head` would trip over tables that
+    already exist. Starting from nothing also means the run is reproducible,
+    which is the whole point of asserting no drift against it. Safe only
+    because this database is disposable by contract: `clean_db` already
+    truncates every table in it between tests.
+    """
+    from alembic import command
+    from alembic.config import Config
+
+    with eng.begin() as conn:
+        conn.execute(text("DROP SCHEMA IF EXISTS public CASCADE"))
+        conn.execute(text("CREATE SCHEMA public"))
+
+    # Built without the ini file: `alembic.ini` carries a `fileConfig` logging
+    # section, and applying it here would disable every logger pytest and the
+    # rest of the suite have already set up.
+    cfg = Config()
+    # Absolute, so the suite migrates the same tree whether pytest was started
+    # from `backend/` or from the repo root.
+    cfg.set_main_option("script_location", str(BACKEND / "alembic"))
+    cfg.attributes["db_url"] = url
+    command.upgrade(cfg, "head")
+
+
 @pytest.fixture(scope="session")
 def engine(database_url):
-    """Point the whole process at the throwaway database and create the schema."""
+    """Point the whole process at the throwaway database and build its schema."""
     eng = db_module.configure(database_url)
-    with eng.begin() as conn:
-        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-    db_module.Base.metadata.create_all(eng)
+    _build_schema(eng, database_url)
     try:
         yield eng
     finally:
