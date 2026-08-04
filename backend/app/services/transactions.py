@@ -2,6 +2,12 @@
 
 Encapsulates the rules for each transaction type so that routers and importers
 (Plaid inbox, manual quick-add) share the same logic.
+
+Posting never computes an embedding. The row lands with `embedding` NULL and
+`embeddings.backfill_missing_embeddings` fills it in later, so a slow or
+unreachable Ollama costs a backfill pass instead of up to ten seconds on every
+write — which used to be paid once per row on the bulk import and Plaid sync
+loops. Nothing in here reaches for the embedding client any more.
 """
 from __future__ import annotations
 
@@ -12,7 +18,6 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from ..models import Transaction, TxType
-from .embeddings import embed_text_or_none
 
 
 def _post(
@@ -26,7 +31,6 @@ def _post(
     notes: Optional[str] = None,
     plaid_transaction_id: Optional[str] = None,
     linked_transaction_id: Optional[int] = None,
-    embedding: Optional[list[float]] = None,
 ) -> Transaction:
     t = Transaction(
         fund_id=fund_id,
@@ -37,7 +41,6 @@ def _post(
         notes=notes,
         plaid_transaction_id=plaid_transaction_id,
         linked_transaction_id=linked_transaction_id,
-        embedding=embedding,
     )
     db.add(t)
     db.flush()
@@ -55,7 +58,6 @@ def post_expense(
     plaid_transaction_id: Optional[str] = None,
 ) -> Transaction:
     """Amount is positive from the caller; stored as negative on the fund."""
-    embedding = embed_text_or_none(merchant)
     return _post(
         db,
         fund_id=fund_id,
@@ -65,7 +67,6 @@ def post_expense(
         merchant=merchant,
         notes=notes,
         plaid_transaction_id=plaid_transaction_id,
-        embedding=embedding,
     )
 
 
@@ -80,7 +81,6 @@ def post_income(
     plaid_transaction_id: Optional[str] = None,
 ) -> Transaction:
     """If fund_id is None, lands in Unassigned. Otherwise tagged directly."""
-    embedding = embed_text_or_none(merchant)
     return _post(
         db,
         fund_id=fund_id,
@@ -90,7 +90,6 @@ def post_income(
         merchant=merchant,
         notes=notes,
         plaid_transaction_id=plaid_transaction_id,
-        embedding=embedding,
     )
 
 
@@ -114,7 +113,6 @@ def post_income_signed(
         txn_date=txn_date,
         merchant=merchant,
         notes=notes,
-        embedding=embed_text_or_none(merchant),
     )
 
 

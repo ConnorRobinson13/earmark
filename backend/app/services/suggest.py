@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..models import Fund
-from .embeddings import embed_text_or_none
+from .embeddings import backfill_missing_embeddings, embed_text_or_none
 
 log = logging.getLogger(__name__)
 
@@ -29,6 +29,12 @@ def suggest_fund(
 
     vec = embed_text_or_none(merchant)
     if vec is not None:
+        # Writes leave `embedding` NULL so posting doesn't wait on Ollama, which
+        # makes recent transactions invisible to the search below — a neighbour
+        # that isn't embedded is a neighbour we can't find. Catch them up first.
+        # Only reached when the call above just succeeded, so the model is up.
+        backfill_missing_embeddings()
+
         # nearest past transaction by cosine distance with a tagged fund
         row = db.execute(
             text(
