@@ -272,6 +272,16 @@ def _counting(engine) -> Generator[list[str]]:
         event.remove(engine, "before_cursor_execute", record)
 
 
+def _plain_funds(db, count: int) -> list[Fund]:
+    """`count` operational funds, each with a transaction in the month."""
+    made = [Fund(name=f"Plain {i}", kind=FundKind.operational) for i in range(count)]
+    db.add_all(made)
+    db.flush()
+    db.add_all([_tx(f, TxType.assignment, "10.00", date(2026, 3, 4)) for f in made])
+    db.flush()
+    return made
+
+
 def _lots_of_funds(db, count: int) -> list[Fund]:
     """`count` funds spanning the shapes that make the enricher branch.
 
@@ -318,6 +328,22 @@ def test_the_statement_count_does_not_grow_with_the_funds(db, funds, engine):
 
     assert len(for_four) == EXPECTED_STATEMENTS, for_four
     assert len(for_forty) == EXPECTED_STATEMENTS, for_forty
+
+
+def test_funds_with_no_contribution_goal_skip_the_settlements_query(db, funds, engine):
+    """The settlements query is the one thing that varies, and it varies on
+    whether any contribution goal is present — never on how many funds are."""
+    no_goals = [funds["groceries"], funds["emergency"], funds["car_loan"]]
+    with _counting(engine) as for_three:
+        enrich_funds(db, no_goals, MONTH)
+    assert len(for_three) == 1, for_three
+
+    # The fixture's contribution goal stays in the database and out of the call:
+    # what decides the count is the set handed over, not what else exists.
+    thirty = no_goals + _plain_funds(db, 27)
+    with _counting(engine) as for_thirty:
+        enrich_funds(db, thirty, MONTH)
+    assert len(for_thirty) == 1, for_thirty
 
 
 def test_enriching_nothing_asks_the_database_nothing(db, engine):
