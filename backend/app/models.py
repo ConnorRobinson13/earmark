@@ -11,6 +11,7 @@ from sqlalchemy import (
     Date,
     Enum,
     ForeignKey,
+    Index,
     Numeric,
     SmallInteger,
     String,
@@ -116,11 +117,13 @@ class Transaction(Base):
     __tablename__ = "transactions"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    fund_id: Mapped[Optional[int]] = mapped_column(ForeignKey("funds.id"), nullable=True)
+    fund_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("funds.id"), nullable=True, index=True
+    )
     type: Mapped[TxType] = mapped_column(Enum(TxType))
     # Signed amount: negative for outflow from fund, positive for inflow.
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
-    date: Mapped[date] = mapped_column(Date)
+    date: Mapped[date] = mapped_column(Date, index=True)
     merchant: Mapped[str] = mapped_column(String(200), default="")
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     plaid_transaction_id: Mapped[Optional[str]] = mapped_column(
@@ -173,6 +176,10 @@ class GoalSettlement(Base):
     month); this row is what `goals_saved_in_month` reads from.
     """
     __tablename__ = "goal_settlements"
+    # `goals_saved_in_month` reads this table by goal over a date window.
+    __table_args__ = (
+        Index("ix_goal_settlements_goal_month", "goal_id", "settled_at"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     goal_id: Mapped[int] = mapped_column(ForeignKey("funds.id", ondelete="CASCADE"))
