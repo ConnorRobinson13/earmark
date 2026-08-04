@@ -21,7 +21,6 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..month import (
-    clamp_day_to_month,
     current_month,
     first_of_month,
     last_day_of_month,
@@ -37,6 +36,7 @@ from ..models import (
     PaydaySchedule,
     Transaction,
 )
+from .cashflow import CashflowInputs, FundCharge, MonthInputs, Payday, month_is_over
 
 
 def liquid_cash(db: Session) -> Decimal:
@@ -299,133 +299,56 @@ def active_funds_in_month(db: Session, month: date) -> list[Fund]:
     )
 
 
-def project_cashflow(db: Session, month: date | None = None) -> dict:
-    """Day-by-day account-balance projection for every day of the selected month.
+def gather_cashflow_inputs(db: Session, month: date | None = None) -> CashflowInputs:
+    """Read everything `app.services.cashflow.project` needs to project `month`.
 
-    The model is a simple plan: each fund's *full assigned amount* leaves the
-    account on its `due_day`, and each payday lands its income on its day. We
-    anchor the running balance to reality by working back from current liquid
-    cash — the balance shown for *today* equals your real balance now, and the
-    days before/after it are reconstructed/projected from that point. Returns one
-    entry per day (1st → last) so the UI can render a stacked card per day.
+    This is the database half of the cash-flow projection, and the only half
+    that touches a session: current liquid cash, the payday schedule, and — for
+    every month from the current one through the selected one — that month's
+    planned income and the funds drawing on it. The span reaches back to the
+    current month because the projection anchors its running balance to today's
+    real cash and carries it forward from there.
     """
     today = date.today()
     sel_first = first_of_month(month or today)
-    sel_end = last_day_of_month(sel_first)
-
     current_liquid = liquid_cash(db)
 
-    # Past month: we can't reconstruct historical daily balances meaningfully.
-    if sel_end < today:
-        return {
-            "month": sel_first.isoformat(),
-            "past": True,
-            "today": today.isoformat(),
-            "start_balance": str(current_liquid),
-            "ending_balance": str(current_liquid),
-            "min_balance": str(current_liquid),
-            "min_date": today.isoformat(),
-            "goes_negative": False,
-            "days": [],
-        }
+    # A month already over is answered from liquid cash alone, so don't pay for
+    # per-month reads the projection will never look at.
+    if month_is_over(sel_first, today):
+        return CashflowInputs(today=today, month=sel_first, liquid_cash=current_liquid)
 
-    paydays = list(db.scalars(select(PaydaySchedule)).all())
+    paydays = [
+        Payday(day_of_month=p.day_of_month, amount=p.amount)
+        for p in db.scalars(select(PaydaySchedule)).all()
+    ]
 
-    # Build every event (full fund amount on its due day, paycheck on its payday)
-    # for each month from the current month through the selected one — including
-    # dates already past, since we render the whole month and anchor to today.
-    events: list[dict] = []
-    span_first = current_month(today)
-    m = span_first
+    months: list[MonthInputs] = []
+    m = current_month(today)
     while m <= sel_first:
-        planned = planned_income_for_month(db, m)
-        fixed_total = sum((p.amount for p in paydays if p.amount is not None), Decimal("0"))
-        split_count = sum(1 for p in paydays if p.amount is None)
-        split_each = (planned - fixed_total) / split_count if split_count else Decimal("0")
-        for p in paydays:
-            amt = p.amount if p.amount is not None else split_each
-            if amt == 0:
-                continue
-            events.append(
-                {
-                    "date": clamp_day_to_month(p.day_of_month, m),
-                    "kind": "income",
-                    "label": "Paycheck",
-                    "amount": Decimal(amt),
-                }
+        months.append(
+            MonthInputs(
+                month=m,
+                planned_income=planned_income_for_month(db, m),
+                funds=[
+                    FundCharge(
+                        name=f.name,
+                        due_day=f.due_day,
+                        assigned=fund_assigned_in_month(db, f.id, m),
+                    )
+                    for f in active_funds_in_month(db, m)
+                ],
             )
-        for f in active_funds_in_month(db, m):
-            assigned = fund_assigned_in_month(db, f.id, m)
-            if assigned == 0:
-                continue
-            events.append(
-                {
-                    "date": clamp_day_to_month(f.due_day, m),
-                    "kind": "outflow",
-                    "label": f.name,
-                    "amount": -Decimal(assigned),
-                }
-            )
+        )
         m = next_month(m)
 
-    events.sort(key=lambda e: e["date"])
-
-    # Anchor: pick the balance carried into the start of the span so that the
-    # running balance on `today` equals current liquid cash.
-    #   balance(today) = span_start + Σ(events dated ≤ today)  ==  current_liquid
-    consumed = sum((e["amount"] for e in events if e["date"] <= today), Decimal("0"))
-    span_start = current_liquid - consumed
-
-    # Walk the whole span day by day; keep only the selected month's days.
-    days: list[dict] = []
-    running = span_start
-    carried_in = span_start  # balance carried into the first selected day
-    min_balance: Decimal | None = None
-    min_date = sel_first
-    ei = 0
-    d = span_first
-    while d <= sel_end:
-        if d == sel_first:
-            carried_in = running
-        day_events = []
-        while ei < len(events) and events[ei]["date"] == d:
-            running += events[ei]["amount"]
-            day_events.append(
-                {
-                    "kind": events[ei]["kind"],
-                    "label": events[ei]["label"],
-                    "amount": str(events[ei]["amount"]),
-                }
-            )
-            ei += 1
-        if d >= sel_first:
-            days.append(
-                {
-                    "date": d.isoformat(),
-                    "balance": str(running),
-                    "events": day_events,
-                    "is_today": d == today,
-                }
-            )
-            if min_balance is None or running < min_balance:
-                min_balance = running
-                min_date = d
-        d += timedelta(days=1)
-
-    start_balance = str(carried_in)
-    min_balance = min_balance if min_balance is not None else span_start
-
-    return {
-        "month": sel_first.isoformat(),
-        "past": False,
-        "today": today.isoformat(),
-        "start_balance": start_balance,
-        "ending_balance": str(running),
-        "min_balance": str(min_balance),
-        "min_date": min_date.isoformat(),
-        "goes_negative": min_balance < 0,
-        "days": days,
-    }
+    return CashflowInputs(
+        today=today,
+        month=sel_first,
+        liquid_cash=current_liquid,
+        paydays=paydays,
+        months=months,
+    )
 
 
 def enrich_fund(db: Session, f: Fund, month: date | None = None) -> dict:
