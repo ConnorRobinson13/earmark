@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import Account, AccountType, Fund, FundKind, GoalSettlement
 from ..month import parse_month_or_current
+from ..services import settlements as settlements_svc
 from ..services.balances import goal_pending_settlement
 
 router = APIRouter(prefix="/settlements", tags=["settlements"])
@@ -75,32 +76,25 @@ def list_pending(month: str | None = None, db: Session = Depends(get_db)):
 @router.post("/goal/{goal_id}", status_code=201)
 def settle_goal(goal_id: int, body: SettleBody, db: Session = Depends(get_db)):
     """Record that `amount` was moved from `from_account_id` to the goal's
-    backing account. Bumps both account balances; goal fund balance is untouched."""
+    backing account. The balance movement itself lives in the settlements
+    service, which is also what undoes it."""
     goal = db.get(Fund, goal_id)
     if not goal or goal.kind != FundKind.goal:
         raise HTTPException(404, "Goal not found")
-    if body.amount <= 0:
-        raise HTTPException(400, "amount must be positive")
 
     settled_at = body.settled_at or date.today()
-    from_acct = db.get(Account, body.from_account_id) if body.from_account_id else None
-    to_acct = db.get(Account, goal.backed_by_account_id) if goal.backed_by_account_id else None
+    try:
+        s = settlements_svc.settle_goal(
+            db,
+            goal=goal,
+            amount=body.amount,
+            from_account_id=body.from_account_id,
+            settled_at=settled_at,
+        )
+    except settlements_svc.SettlementError as e:
+        raise HTTPException(400, str(e)) from e
 
-    if from_acct is not None:
-        from_acct.current_balance = Decimal(from_acct.current_balance) - body.amount
-    if to_acct is not None:
-        to_acct.current_balance = Decimal(to_acct.current_balance) + body.amount
-
-    s = GoalSettlement(
-        goal_id=goal.id,
-        from_account_id=from_acct.id if from_acct else None,
-        to_account_id=to_acct.id if to_acct else None,
-        amount=body.amount,
-        settled_at=settled_at,
-    )
-    db.add(s)
-    db.commit()
-    return {
+    response = {
         "id": s.id,
         "goal_id": goal.id,
         "amount": str(body.amount),
@@ -108,6 +102,8 @@ def settle_goal(goal_id: int, body: SettleBody, db: Session = Depends(get_db)):
         "to_account_id": s.to_account_id,
         "settled_at": settled_at.isoformat(),
     }
+    db.commit()
+    return response
 
 
 @router.delete("/{settlement_id}", status_code=204)
@@ -115,11 +111,5 @@ def undo_settlement(settlement_id: int, db: Session = Depends(get_db)):
     s = db.get(GoalSettlement, settlement_id)
     if not s:
         raise HTTPException(404)
-    from_acct = db.get(Account, s.from_account_id) if s.from_account_id else None
-    to_acct = db.get(Account, s.to_account_id) if s.to_account_id else None
-    if from_acct is not None:
-        from_acct.current_balance = Decimal(from_acct.current_balance) + s.amount
-    if to_acct is not None:
-        to_acct.current_balance = Decimal(to_acct.current_balance) - s.amount
-    db.delete(s)
+    settlements_svc.unsettle(db, s)
     db.commit()
