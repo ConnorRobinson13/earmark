@@ -6,8 +6,8 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from .db import new_session
 from .month import InvalidMonth
+from .services import plaid_sync
 from .routers import (
     accounts,
     admin,
@@ -30,16 +30,12 @@ log = logging.getLogger(__name__)
 
 
 def _daily_sync_job():
-    """Pull Plaid transactions + refresh balances. Scheduled at 06:00 local."""
-    from .routers.plaid import run_sync  # local import — keep startup light
-    db = new_session()
-    try:
-        added = run_sync(db)
-        log.info("daily sync: added %d transactions", added)
-    except Exception:
-        log.exception("daily sync failed")
-    finally:
-        db.close()
+    """Pull Plaid transactions + refresh balances. Scheduled at 06:00 local.
+
+    The service owns the session, the client and the error handling, so this job
+    is the same sync the manual endpoint runs — not a second copy of it.
+    """
+    plaid_sync.run_daily_sync()
 
 
 @asynccontextmanager
