@@ -14,13 +14,17 @@ a per-fund lookup.
 """
 from __future__ import annotations
 
+from collections.abc import Generator
+from contextlib import contextmanager
 from datetime import date
 from decimal import Decimal
 
 import pytest
+from sqlalchemy import event
 
+from app import schemas
 from app.models import Fund, FundKind, GoalSettlement, GoalType, Transaction, TxType
-from app.services.balances import enrich_fund
+from app.services.balances import enrich_funds
 
 # A month with history behind it and a month ahead of it, so the fixture proves
 # both bounds: what carried in, and what must not be counted yet.
@@ -164,13 +168,10 @@ MONEY_FIELDS = (
 
 def _actual(enriched) -> dict[str, object]:
     """The derived half of an enrichment, as plain comparable values."""
-    def get(field: str):
-        return enriched[field] if isinstance(enriched, dict) else getattr(enriched, field)
-
     return {
-        **{f: get(f) for f in MONEY_FIELDS},
-        "contribution_ytd": get("contribution_ytd"),
-        "contribution_year": get("contribution_year"),
+        **{f: getattr(enriched, f) for f in MONEY_FIELDS},
+        "contribution_ytd": enriched.contribution_ytd,
+        "contribution_year": enriched.contribution_year,
     }
 
 
@@ -184,6 +185,142 @@ def _expected(key: str) -> dict[str, object]:
     }
 
 
-@pytest.mark.parametrize("key", list(EXPECTED))
-def test_enrichment_matches_the_per_fund_figures(db, funds, key):
-    assert _actual(enrich_fund(db, funds[key], MONTH)) == _expected(key)
+#: The four shapes, enriched as one set — which is the whole interface now.
+SHAPES = list(EXPECTED)
+
+
+@pytest.fixture()
+def enriched(db, funds) -> dict[str, object]:
+    result = enrich_funds(db, [funds[k] for k in SHAPES], MONTH)
+    return dict(zip(SHAPES, result))
+
+
+@pytest.mark.parametrize("key", SHAPES)
+def test_enrichment_matches_the_per_fund_figures(enriched, key):
+    assert _actual(enriched[key]) == _expected(key)
+
+
+def test_enrichment_returns_the_declared_response_schema(enriched, funds):
+    """The schema itself, not a dict shaped like it.
+
+    The declared fields have to survive the trip too: they are what makes
+    building `FundOut` from the fund cheaper than restating it field by field.
+    """
+    groceries = enriched["groceries"]
+    assert isinstance(groceries, schemas.FundOut)
+    assert (groceries.id, groceries.name) == (funds["groceries"].id, "Groceries")
+    assert (groceries.kind, groceries.category, groceries.due_day) == (
+        FundKind.operational,
+        "Food",
+        5,
+    )
+
+    car_loan = enriched["car_loan"]
+    assert (car_loan.kind, car_loan.goal_type) == (FundKind.goal, GoalType.debt)
+    assert (car_loan.target, car_loan.min_payment) == (
+        Decimal("5000.00"),
+        Decimal("250.00"),
+    )
+
+
+def test_a_fund_with_no_transactions_enriches_to_zero(db):
+    """No row comes back from a grouped scan for a fund that has nothing in it,
+    which is a different code path from summing an empty set per fund."""
+    fresh = Fund(name="Brand New", kind=FundKind.operational)
+    db.add(fresh)
+    db.flush()
+
+    (out,) = enrich_funds(db, [fresh], MONTH)
+    assert _actual(out) == {
+        "balance": Decimal("0"),
+        "net_spent_this_month": Decimal("0"),
+        "assigned_this_month": Decimal("0"),
+        "available_this_month": Decimal("0"),
+        "contribution_ytd": None,
+        "contribution_year": None,
+    }
+
+
+def test_a_contribution_goal_without_a_target_date_uses_the_viewed_year(db):
+    """The other half of the tax-year rule the March fixture doesn't reach."""
+    hsa = Fund(name="HSA", kind=FundKind.goal, goal_type=GoalType.contribution)
+    db.add(hsa)
+    db.flush()
+    db.add_all([
+        GoalSettlement(goal_id=hsa.id, amount=Decimal("100.00"), settled_at=date(2026, 2, 1)),
+        GoalSettlement(goal_id=hsa.id, amount=Decimal("75.00"), settled_at=date(2025, 11, 1)),
+    ])
+    db.flush()
+
+    (out,) = enrich_funds(db, [hsa], MONTH)
+    assert out.contribution_year == MONTH.year
+    assert out.contribution_ytd == Decimal("100.00")
+
+
+@contextmanager
+def _counting(engine) -> Generator[list[str]]:
+    """Every statement sent over `engine` while inside the block."""
+    statements: list[str] = []
+
+    def record(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+
+    event.listen(engine, "before_cursor_execute", record)
+    try:
+        yield statements
+    finally:
+        event.remove(engine, "before_cursor_execute", record)
+
+
+def _lots_of_funds(db, count: int) -> list[Fund]:
+    """`count` funds spanning the shapes that make the enricher branch.
+
+    Contribution goals are in the mix deliberately: they are what triggers the
+    second query, so their presence must not scale with anything either.
+    """
+    made = []
+    for i in range(count):
+        goal = i % 3 == 0
+        made.append(
+            Fund(
+                name=f"Fund {i}",
+                kind=FundKind.goal if goal else FundKind.operational,
+                goal_type=GoalType.contribution if goal else None,
+            )
+        )
+    db.add_all(made)
+    db.flush()
+    db.add_all([
+        _tx(f, TxType.assignment, "100.00", date(2026, 3, 4)) for f in made
+    ])
+    db.add_all([
+        GoalSettlement(goal_id=f.id, amount=Decimal("25.00"), settled_at=date(2026, 2, 2))
+        for f in made
+        if f.goal_type is GoalType.contribution
+    ])
+    db.flush()
+    return made
+
+
+#: Two grouped queries: one over transactions, one over goal settlements. The
+#: literal is the point of the test — "fewer than before" would drift back.
+EXPECTED_STATEMENTS = 2
+
+
+def test_the_statement_count_does_not_grow_with_the_funds(db, funds, engine):
+    four = [funds[k] for k in SHAPES]
+    with _counting(engine) as for_four:
+        enrich_funds(db, four, MONTH)
+
+    forty = _lots_of_funds(db, 40)
+    with _counting(engine) as for_forty:
+        enrich_funds(db, forty, MONTH)
+
+    assert len(for_four) == EXPECTED_STATEMENTS, for_four
+    assert len(for_forty) == EXPECTED_STATEMENTS, for_forty
+
+
+def test_enriching_nothing_asks_the_database_nothing(db, engine):
+    with _counting(engine) as statements:
+        assert enrich_funds(db, [], MONTH) == []
+    assert statements == []

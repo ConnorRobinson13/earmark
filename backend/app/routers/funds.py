@@ -10,7 +10,7 @@ from ..models import Fund, Transaction
 from ..month import parse_month
 from ..services import transactions as tx_svc
 from ..services.account_sync import sync_goals_for_account
-from ..services.balances import enrich_fund, fund_balance
+from ..services.balances import enrich_funds, fund_balance
 
 router = APIRouter(prefix="/funds", tags=["funds"])
 
@@ -21,7 +21,7 @@ def list_funds(include_archived: bool = False, db: Session = Depends(get_db)):
     if not include_archived:
         q = q.where(Fund.archived_at.is_(None))
     q = q.order_by(Fund.sort_order, Fund.id)
-    return [enrich_fund(db, f) for f in db.scalars(q).all()]
+    return enrich_funds(db, db.scalars(q).all())
 
 
 @router.post("", response_model=schemas.FundOut, status_code=201)
@@ -30,7 +30,7 @@ def create_fund(body: schemas.FundCreate, db: Session = Depends(get_db)):
     db.add(f)
     db.commit()
     db.refresh(f)
-    return enrich_fund(db, f)
+    return enrich_funds(db, [f])[0]
 
 
 @router.get("/{fund_id}", response_model=schemas.FundOut)
@@ -38,7 +38,7 @@ def get_fund(fund_id: int, db: Session = Depends(get_db)):
     f = db.get(Fund, fund_id)
     if not f:
         raise HTTPException(404)
-    return enrich_fund(db, f)
+    return enrich_funds(db, [f])[0]
 
 
 @router.patch("/{fund_id}", response_model=schemas.FundOut)
@@ -58,7 +58,7 @@ def update_fund(fund_id: int, body: schemas.FundUpdate, db: Session = Depends(ge
         sync_goals_for_account(db, f.backed_by_account_id)
     db.commit()
     db.refresh(f)
-    return enrich_fund(db, f)
+    return enrich_funds(db, [f])[0]
 
 
 @router.delete("/{fund_id}")

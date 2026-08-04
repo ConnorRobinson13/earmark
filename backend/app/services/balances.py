@@ -14,16 +14,18 @@ module only uses it.
 """
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import date, timedelta
 from decimal import Decimal
+from typing import NamedTuple
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from .. import schemas
 from ..month import (
     current_month,
     first_of_month,
-    last_day_of_month,
     month_bounds,
     next_month,
 )
@@ -59,24 +61,6 @@ def fund_balance(db: Session, fund_id: int, as_of: date | None = None) -> Decima
     return Decimal(db.scalar(q) or 0)
 
 
-def fund_net_spent_in_month(db: Session, fund_id: int, month: date | None = None) -> Decimal:
-    """Net outflows for a fund within `month`, positive when net spent.
-
-    Includes expense, transfer, AND tagged income — so reimbursements offset spending.
-    Assignments are excluded since they are budgeting, not spending.
-    """
-    first, nxt = month_bounds(month or date.today())
-    total = db.scalar(
-        select(func.coalesce(func.sum(Transaction.amount), 0)).where(
-            Transaction.fund_id == fund_id,
-            Transaction.date >= first,
-            Transaction.date < nxt,
-            Transaction.type.in_(["expense", "transfer", "income"]),
-        )
-    )
-    return -Decimal(total or 0)
-
-
 def fund_assigned_in_month(db: Session, fund_id: int, month: date | None = None) -> Decimal:
     """Sum of assignment entries on this fund within `month`."""
     first, nxt = month_bounds(month or date.today())
@@ -89,25 +73,6 @@ def fund_assigned_in_month(db: Session, fund_id: int, month: date | None = None)
         )
     )
     return Decimal(total or 0)
-
-
-def fund_balance_at_month_start(db: Session, fund_id: int, month: date | None = None) -> Decimal:
-    """Fund balance carried into `month` (sum of transactions before its first day)."""
-    first, _ = month_bounds(month or date.today())
-    total = db.scalar(
-        select(func.coalesce(func.sum(Transaction.amount), 0)).where(
-            Transaction.fund_id == fund_id,
-            Transaction.date < first,
-        )
-    )
-    return Decimal(total or 0)
-
-
-def fund_available_in_month(db: Session, fund_id: int, month: date | None = None) -> Decimal:
-    """Rollover + this month's assignment."""
-    return fund_balance_at_month_start(db, fund_id, month) + fund_assigned_in_month(
-        db, fund_id, month
-    )
 
 
 def untagged_income_in_month(db: Session, month: date | None = None) -> Decimal:
@@ -230,21 +195,6 @@ def goals_saved_in_month(db: Session, month: date | None = None) -> Decimal:
     return Decimal(total or 0)
 
 
-def goal_contributions_in_year(db: Session, goal_id: int, year: int) -> Decimal:
-    """Sum of GoalSettlements for `goal_id` whose settled_at falls in `year`.
-    This is the right metric for contribution goals (Roth/HSA/401k) — what
-    matters is how much money you physically moved into the account this tax
-    year, not the account's current market value."""
-    total = db.scalar(
-        select(func.coalesce(func.sum(GoalSettlement.amount), 0)).where(
-            GoalSettlement.goal_id == goal_id,
-            GoalSettlement.settled_at >= date(year, 1, 1),
-            GoalSettlement.settled_at < date(year + 1, 1, 1),
-        )
-    )
-    return Decimal(total or 0)
-
-
 def goal_pending_settlement(db: Session, goal_id: int, month: date | None = None) -> Decimal:
     """For a goal, how much was assigned this month but not yet moved to its account."""
     first, nxt = month_bounds(month or date.today())
@@ -351,33 +301,134 @@ def gather_cashflow_inputs(db: Session, month: date | None = None) -> CashflowIn
     )
 
 
-def enrich_fund(db: Session, f: Fund, month: date | None = None) -> dict:
+class _FundTotals(NamedTuple):
+    """The four sums a month needs from one fund's transactions."""
+
+    balance: Decimal      # everything through the end of the month
+    carried_in: Decimal   # everything before the month started
+    net_flow: Decimal     # signed spending within the month (negative when spent)
+    assigned: Decimal     # assignments within the month
+
+
+_NO_ACTIVITY = _FundTotals(Decimal("0"), Decimal("0"), Decimal("0"), Decimal("0"))
+
+#: What counts as spending: tagged income is included so reimbursements offset
+#: outflows, and assignments are excluded because they are budgeting rather than
+#: spending. The same rule `gross_spent_in_month` applies across all funds.
+_SPENDING_TYPES = ("expense", "transfer", "income")
+
+
+def enrich_funds(
+    db: Session, funds: Sequence[Fund], month: date | None = None
+) -> list[schemas.FundOut]:
+    """The month's derived figures for every fund in `funds`.
+
+    Plural because the figures are cheaper together than apart. Each fund needs
+    a balance, the balance it carried in, its spending and its assignments for
+    the month — four windows over the same rows — so asking one fund at a time
+    meant re-reading that fund's transactions four times over. Here they are
+    four aggregates of a single grouped scan, and contribution goals add one
+    more query for the whole set rather than one each. Two statements, whether
+    the dashboard is showing four funds or forty.
+
+    The response schema is read off the fund itself rather than copied field by
+    field, so a column added to `FundOut` arrives here without an edit — the
+    hand-built dict this replaces was a second copy that drifted on its own.
+    """
+    if not funds:
+        return []
+
     month = month or date.today()
-    as_of = last_day_of_month(month)
-    out = {
-        "id": f.id,
-        "name": f.name,
-        "kind": f.kind,
-        "target": f.target,
-        "target_date": f.target_date,
-        "goal_type": f.goal_type,
-        "backed_by_account_id": f.backed_by_account_id,
-        "min_payment": f.min_payment,
-        "sort_order": f.sort_order,
-        "category": f.category,
-        "due_day": f.due_day,
-        "archived_at": f.archived_at,
-        "balance": fund_balance(db, f.id, as_of=as_of),
-        "net_spent_this_month": fund_net_spent_in_month(db, f.id, month),
-        "assigned_this_month": fund_assigned_in_month(db, f.id, month),
-        "available_this_month": fund_available_in_month(db, f.id, month),
-        "contribution_ytd": None,
-        "contribution_year": None,
+    first, nxt = month_bounds(month)
+
+    # `date < nxt` is the same cut as the per-fund helpers' `date <= as_of`,
+    # `as_of` being the last day of the month — so one bound on the scan serves
+    # both the end-of-month balance and the in-month windows within it.
+    in_month = Transaction.date >= first
+    totals = {
+        row.fund_id: _FundTotals(
+            balance=Decimal(row.balance),
+            carried_in=Decimal(row.carried_in),
+            net_flow=Decimal(row.net_flow),
+            assigned=Decimal(row.assigned),
+        )
+        for row in db.execute(
+            select(
+                Transaction.fund_id,
+                func.coalesce(func.sum(Transaction.amount), 0).label("balance"),
+                func.coalesce(
+                    func.sum(Transaction.amount).filter(Transaction.date < first), 0
+                ).label("carried_in"),
+                func.coalesce(
+                    func.sum(Transaction.amount).filter(
+                        in_month, Transaction.type.in_(_SPENDING_TYPES)
+                    ),
+                    0,
+                ).label("net_flow"),
+                func.coalesce(
+                    func.sum(Transaction.amount).filter(
+                        in_month, Transaction.type == "assignment"
+                    ),
+                    0,
+                ).label("assigned"),
+            )
+            .where(
+                Transaction.fund_id.in_([f.id for f in funds]),
+                Transaction.date < nxt,
+            )
+            .group_by(Transaction.fund_id)
+        )
     }
-    # For contribution goals: year = year of target_date if set, else the
-    # viewed month's year. YTD = sum of GoalSettlements within that year.
-    if f.goal_type and f.goal_type.value == "contribution":
-        year = f.target_date.year if f.target_date else month.year
-        out["contribution_year"] = year
-        out["contribution_ytd"] = goal_contributions_in_year(db, f.id, year)
-    return out
+
+    # Contribution goals (Roth/HSA/401k) are measured over a tax year, not a
+    # month: the year of the target date when there is one, else the year being
+    # viewed. Different funds can therefore want different years, so the sums
+    # come back grouped by both.
+    years = {
+        f.id: (f.target_date.year if f.target_date else month.year)
+        for f in funds
+        if f.goal_type is not None and f.goal_type.value == "contribution"
+    }
+    contributions: dict[int, Decimal] = {}
+    if years:
+        settled_year = func.extract("year", GoalSettlement.settled_at)
+        by_goal_year = {
+            (goal_id, int(year)): Decimal(total)
+            for goal_id, year, total in db.execute(
+                select(
+                    GoalSettlement.goal_id,
+                    settled_year.label("year"),
+                    func.coalesce(func.sum(GoalSettlement.amount), 0),
+                )
+                .where(
+                    GoalSettlement.goal_id.in_(list(years)),
+                    # Bounded by date rather than by the extracted year so the
+                    # (goal_id, settled_at) index still carries the lookup.
+                    GoalSettlement.settled_at >= date(min(years.values()), 1, 1),
+                    GoalSettlement.settled_at < date(max(years.values()) + 1, 1, 1),
+                )
+                .group_by(GoalSettlement.goal_id, settled_year)
+            )
+        }
+        contributions = {
+            goal_id: by_goal_year.get((goal_id, year), Decimal("0"))
+            for goal_id, year in years.items()
+        }
+
+    enriched = []
+    for f in funds:
+        t = totals.get(f.id, _NO_ACTIVITY)
+        enriched.append(
+            schemas.FundOut.model_validate(f).model_copy(
+                update={
+                    "balance": t.balance,
+                    # Stored signed, reported positive when money left the fund.
+                    "net_spent_this_month": -t.net_flow,
+                    "assigned_this_month": t.assigned,
+                    "available_this_month": t.carried_in + t.assigned,
+                    "contribution_ytd": contributions.get(f.id),
+                    "contribution_year": years.get(f.id),
+                }
+            )
+        )
+    return enriched
