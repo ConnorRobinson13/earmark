@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .month import InvalidMonth
+from .services import plaid_sync
 from .routers import (
     accounts,
     admin,
@@ -34,8 +35,6 @@ def _daily_sync_job():
     The service owns the session, the client and the error handling, so this job
     is the same sync the manual endpoint runs — not a second copy of it.
     """
-    from .services import plaid_sync  # local import — keep startup light
-
     plaid_sync.run_daily_sync()
 
 

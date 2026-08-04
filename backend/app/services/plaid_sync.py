@@ -55,7 +55,7 @@ _PARENT_TYPE_MAP = {
 }
 
 
-def classify_plaid_account(p: dict[str, Any]) -> AccountType:
+def _classify_plaid_account(p: dict[str, Any]) -> AccountType:
     """Plaid returns parent `type` (depository/credit/investment/loan/other)
     AND a more granular `subtype`. Prefer subtype when it's something we
     recognize; otherwise use the parent type — that's how Roth/IRA/brokerage
@@ -99,21 +99,6 @@ def link_item(
     return LinkResult(item_id=linked.item_id, accounts_created=created)
 
 
-def unlink_item(db: Session, item: PlaidItem) -> None:
-    """Drop the Plaid link, keeping the accounts, their balances and history."""
-    for a in db.scalars(select(Account).where(Account.plaid_item_id == item.id)).all():
-        a.plaid_item_id = None
-        a.plaid_account_id = None
-    db.delete(item)
-    db.commit()
-
-
-def refresh_item_accounts(db: Session, client: PlaidClient, item: PlaidItem) -> int:
-    """Fetch this Item's accounts from Plaid and upsert them. Returns the number
-    of newly-created Account rows."""
-    return _upsert_accounts(db, item, client.accounts(item.access_token))
-
-
 def run_sync(db: Session, client: PlaidClient) -> int:
     """Pull new Plaid transactions and refresh balances. Returns count added.
 
@@ -130,7 +115,7 @@ def run_sync(db: Session, client: PlaidClient) -> int:
     total_added = 0
     for item in items:
         # Refresh balances first so inbox account_id lookups land on fresh rows
-        refresh_item_accounts(db, client, item)
+        _upsert_accounts(db, item, client.accounts(item.access_token))
 
         cursor = item.cursor or ""
         has_more = True
@@ -199,7 +184,9 @@ def _ingest(db: Session, t: dict[str, Any], floor: date | None) -> bool:
     if floor and txn_date < floor:
         return False
     merchant = t.get("merchant_name") or t.get("name") or ""
-    amount = t["amount"]
+    # Plaid sends the amount as a JSON number; money is Decimal on this side of
+    # the wire, and str() is the only honest way across from a float.
+    amount = Decimal(str(t["amount"]))
     acct = _account_for_plaid_id(db, t.get("account_id"))
     # Investment accounts: only the balance is tracked. Skip
     # transactions entirely — buys, sells, dividends, internal
@@ -223,7 +210,12 @@ def _ingest(db: Session, t: dict[str, Any], floor: date | None) -> bool:
 
 
 def _reconcile_removed(db: Session, removed: dict[str, Any]) -> None:
-    rid = removed["transaction_id"]
+    # Tolerate a payload without the id rather than raising: a KeyError here
+    # would abort the whole run before the commit, throwing away every
+    # transaction already staged for every item over one malformed row.
+    rid = removed.get("transaction_id")
+    if not rid:
+        return
     inbox_row = db.scalar(select(PlaidInbox).where(PlaidInbox.plaid_transaction_id == rid))
     if inbox_row is not None:
         db.delete(inbox_row)
@@ -239,7 +231,7 @@ def _upsert_accounts(
     for p in accounts:
         pid = p["account_id"]
         acct = db.scalar(select(Account).where(Account.plaid_account_id == pid))
-        atype = classify_plaid_account(p)
+        atype = _classify_plaid_account(p)
         name = p.get("official_name") or p.get("name") or f"Plaid {pid[:8]}"
         balance = _balance_for(atype, p.get("balances") or {})
         if acct is None:

@@ -48,7 +48,7 @@ def _fixed_floor(monkeypatch):
     monkeypatch.setattr(settings, "plaid_sync_floor_date", FLOOR.isoformat())
 
 
-def link_item(db, *, access_token: str = "access-stub") -> PlaidItem:
+def seeded_item(db, *, access_token: str = "access-stub") -> PlaidItem:
     item = PlaidItem(
         item_id="item-stub", access_token=access_token, institution_name="Stub Bank"
     )
@@ -96,7 +96,7 @@ def test_transactions_dated_before_the_floor_are_dropped(db):
             plaid_transaction("new", txn_date=AFTER_FLOOR, account_id=CHECKING),
         )
     )
-    link_item(db)
+    seeded_item(db)
 
     assert plaid_sync.run_sync(db, client) == 1
     assert inbox_ids(db) == ["new"]
@@ -106,7 +106,7 @@ def test_a_transaction_on_the_floor_date_itself_is_kept(db):
     client = stub_with(
         one_page(plaid_transaction("on-the-day", txn_date=FLOOR, account_id=CHECKING))
     )
-    link_item(db)
+    seeded_item(db)
 
     assert plaid_sync.run_sync(db, client) == 1
     assert inbox_ids(db) == ["on-the-day"]
@@ -118,7 +118,7 @@ def test_an_unparseable_floor_date_lets_everything_through(db, monkeypatch):
     client = stub_with(
         one_page(plaid_transaction("ancient", txn_date=date(2019, 1, 1), account_id=CHECKING))
     )
-    link_item(db)
+    seeded_item(db)
 
     assert plaid_sync.run_sync(db, client) == 1
 
@@ -131,7 +131,7 @@ def test_an_already_seen_transaction_is_not_added_twice(db):
     client = stub_with(
         one_page(plaid_transaction("txn-1", txn_date=AFTER_FLOOR, account_id=CHECKING))
     )
-    item = link_item(db)
+    item = seeded_item(db)
 
     assert plaid_sync.run_sync(db, client) == 1
 
@@ -156,7 +156,7 @@ def test_pending_transactions_are_skipped(db):
             plaid_transaction("posted-1", txn_date=AFTER_FLOOR, account_id=CHECKING),
         )
     )
-    link_item(db)
+    seeded_item(db)
 
     assert plaid_sync.run_sync(db, client) == 1
     assert inbox_ids(db) == ["posted-1"]
@@ -177,7 +177,7 @@ def test_investment_transactions_are_suppressed(db):
             ),
         ],
     )
-    link_item(db)
+    seeded_item(db)
 
     assert plaid_sync.run_sync(db, client) == 1
     assert inbox_ids(db) == ["groceries"]
@@ -191,7 +191,7 @@ def test_a_removed_transaction_deletes_its_inbox_row(db):
     client = stub_with(
         one_page(plaid_transaction("txn-1", txn_date=AFTER_FLOOR, account_id=CHECKING))
     )
-    item = link_item(db)
+    item = seeded_item(db)
     plaid_sync.run_sync(db, client)
     assert inbox_ids(db) == ["txn-1"]
 
@@ -211,11 +211,29 @@ def test_a_removed_transaction_deletes_its_inbox_row(db):
     assert db.get(PlaidItem, item.id).cursor == "cursor-2"
 
 
+def test_a_removal_without_an_id_does_not_abandon_the_rest_of_the_page(db):
+    """One malformed row must not raise past the commit and discard every
+    transaction already staged for every item."""
+    client = stub_with(
+        {
+            "": SyncPage(
+                added=[plaid_transaction("txn-1", txn_date=AFTER_FLOOR, account_id=CHECKING)],
+                removed=[{}],
+                next_cursor="cursor-1",
+            )
+        }
+    )
+    seeded_item(db)
+
+    assert plaid_sync.run_sync(db, client) == 1
+    assert inbox_ids(db) == ["txn-1"]
+
+
 def test_removing_an_unknown_transaction_is_harmless(db):
     client = stub_with(
         {"": SyncPage(removed=[{"transaction_id": "never-seen"}], next_cursor="c1")}
     )
-    link_item(db)
+    seeded_item(db)
 
     assert plaid_sync.run_sync(db, client) == 0
     assert inbox_ids(db) == []
@@ -238,7 +256,7 @@ def test_paging_follows_has_more_and_stores_the_final_cursor(db):
             ),
         }
     )
-    item = link_item(db)
+    item = seeded_item(db)
 
     assert plaid_sync.run_sync(db, client) == 2
     assert inbox_ids(db) == ["p1", "p2"]
@@ -255,7 +273,7 @@ def test_a_stored_cursor_is_where_the_next_sync_resumes(db):
             )
         }
     )
-    item = link_item(db)
+    item = seeded_item(db)
     item.cursor = "cursor-1"
     db.commit()
 
@@ -279,7 +297,7 @@ def test_syncing_refreshes_account_balances_before_ingesting(db):
         one_page(plaid_transaction("txn-1", txn_date=AFTER_FLOOR, account_id=CHECKING)),
         accounts=[plaid_account(CHECKING, name="Everyday", available=812.45, current=900.0)],
     )
-    link_item(db)
+    seeded_item(db)
 
     plaid_sync.run_sync(db, client)
 
@@ -311,7 +329,7 @@ def test_a_credit_card_stores_the_amount_owed(db):
             )
         ],
     )
-    link_item(db)
+    seeded_item(db)
 
     plaid_sync.run_sync(db, client)
 

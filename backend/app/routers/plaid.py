@@ -83,7 +83,12 @@ def unlink_item(item_id: int, db: Session = Depends(get_db)):
     item = db.get(PlaidItem, item_id)
     if not item:
         raise HTTPException(404)
-    plaid_sync.unlink_item(db, item)
+    # Detach accounts (keep balances + history, just drop the Plaid link)
+    for a in db.scalars(select(Account).where(Account.plaid_item_id == item.id)).all():
+        a.plaid_item_id = None
+        a.plaid_account_id = None
+    db.delete(item)
+    db.commit()
 
 
 @router.post("/sync")
