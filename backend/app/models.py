@@ -235,7 +235,7 @@ class PaydaySchedule(Base):
 class NetWorthSnapshot(Base):
     """One row per month capturing the net-worth breakdown, so the Net Worth view
     can chart a trend over time. Keyed by the first day of the month; re-computed
-    idempotently (upserted) whenever the net-worth endpoint is hit."""
+    idempotently (upserted) whenever a snapshot is explicitly captured."""
 
     __tablename__ = "networth_snapshots"
 
