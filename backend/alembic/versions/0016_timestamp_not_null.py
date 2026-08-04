@@ -6,9 +6,10 @@ Create Date: 2026-08-03
 
 Every one of these columns is non-Optional in `app/models.py` and carries a
 `server_default` of now(), so nothing has ever meant to write a NULL into them.
-The migrations that created them simply omitted `nullable=False` — 0001 did not.
-Nothing broke because the default fills the column on every insert the app
-makes; the columns were just wider than the model believed.
+0001 spelled out `nullable=False` on its timestamps; the later migrations that
+added these five just forgot to. Nothing broke, because the default fills the
+column on every insert the app makes — the columns were simply wider than the
+model believed.
 
 Backfilled before the ALTER because a row inserted with an explicit NULL would
 otherwise fail the constraint and take the whole upgrade down with it.
