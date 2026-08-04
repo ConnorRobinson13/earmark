@@ -25,17 +25,13 @@ from ..models import Account, Fund, GoalSettlement
 AccountDeltas = dict[int, Decimal]
 
 
-class SettlementError(ValueError):
-    """Input the caller got wrong; routers turn this into a 400."""
-
-
 def settle_goal(
     db: Session,
     *,
     goal: Fund,
     amount: Decimal,
-    from_account_id: int | None = None,
     settled_at: date,
+    from_account_id: int | None = None,
 ) -> GoalSettlement:
     """Record that `amount` moved from `from_account_id` into the goal's backing
     account, and move both balances to match.
@@ -48,7 +44,7 @@ def settle_goal(
     stored: that side simply doesn't move.
     """
     if amount <= 0:
-        raise SettlementError("amount must be positive")
+        raise ValueError("amount must be positive")
 
     from_acct = db.get(Account, from_account_id) if from_account_id else None
     to_acct = db.get(Account, goal.backed_by_account_id) if goal.backed_by_account_id else None
@@ -60,9 +56,14 @@ def settle_goal(
         amount=amount,
         settled_at=settled_at,
     )
+    # Move balances from the *stored* row, not from `amount` as it was handed in:
+    # the column is Numeric(12, 2), so a sub-cent amount is rounded on the way in,
+    # and the rounded value is what a later undo reads back. Settling on anything
+    # else would leave a residue behind that the undo can't reverse.
     db.add(settlement)
-    _apply(db, _movement(settlement))
     db.flush()
+    db.refresh(settlement)
+    _apply(db, _movement(settlement))
     return settlement
 
 
@@ -83,11 +84,12 @@ def _movement(settlement: GoalSettlement) -> AccountDeltas:
     came from nets to zero rather than being debited and credited in sequence.
     """
     amount = Decimal(settlement.amount)
+    sides = ((settlement.from_account_id, -amount), (settlement.to_account_id, amount))
     deltas: AccountDeltas = {}
-    if settlement.from_account_id is not None:
-        deltas[settlement.from_account_id] = deltas.get(settlement.from_account_id, Decimal(0)) - amount
-    if settlement.to_account_id is not None:
-        deltas[settlement.to_account_id] = deltas.get(settlement.to_account_id, Decimal(0)) + amount
+    for account_id, delta in sides:
+        if account_id is None:  # no source named, or a goal with no backing account
+            continue
+        deltas[account_id] = deltas.get(account_id, Decimal(0)) + delta
     return deltas
 
 

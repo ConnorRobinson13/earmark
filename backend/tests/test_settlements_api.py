@@ -128,6 +128,31 @@ def test_undo_unknown_settlement_is_404(client):
     assert client.delete("/settlements/9999").status_code == 404
 
 
+def test_undo_restores_balances_for_a_sub_cent_amount(client):
+    """Amounts are stored to the cent. Whatever settling rounded to is what the
+    undo has to give back — settling on the unrounded figure would leave a
+    residue no undo could reverse."""
+    today = date.today().isoformat()
+    checking = client.post(
+        "/accounts", json={"name": "Checking", "type": "checking", "current_balance": "2000.00"}
+    ).json()["id"]
+    savings = client.post(
+        "/accounts", json={"name": "Savings", "type": "savings", "current_balance": "500.00"}
+    ).json()["id"]
+    goal_id = _goal_backed_by(client, savings)
+    before = _accounts_by_name(client)
+
+    settled = client.post(
+        f"/settlements/goal/{goal_id}",
+        json={"amount": "300.005", "from_account_id": checking, "settled_at": today},
+    ).json()
+    moved = _accounts_by_name(client)
+    assert moved["Checking"] + moved["Savings"] == before["Checking"] + before["Savings"]
+
+    client.delete(f"/settlements/{settled['id']}")
+    assert _accounts_by_name(client) == before
+
+
 def test_settling_into_the_account_the_cash_came_from_is_a_no_op(client):
     """Source and destination can be the same account (a goal backed by
     checking). Nothing physically moved, so no balance may either — and undoing

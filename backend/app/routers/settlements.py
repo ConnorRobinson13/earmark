@@ -88,12 +88,14 @@ def settle_goal(goal_id: int, body: SettleBody, db: Session = Depends(get_db)):
             db,
             goal=goal,
             amount=body.amount,
-            from_account_id=body.from_account_id,
             settled_at=settled_at,
+            from_account_id=body.from_account_id,
         )
-    except settlements_svc.SettlementError as e:
-        raise HTTPException(400, str(e)) from e
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
+    # Read the row before committing — commit expires it, and re-reading these
+    # few fields would cost another SELECT.
     response = {
         "id": s.id,
         "goal_id": goal.id,
