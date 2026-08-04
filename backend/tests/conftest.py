@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 from sqlalchemy import text
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import Engine, make_url
 
 # So `pytest backend/tests` works from the repo root too, not just `cd backend`.
 BACKEND = Path(__file__).resolve().parents[1]
@@ -46,10 +46,39 @@ def _no_accidental_fallback():
     db_module.reset()
 
 
+def _refuse_the_real_database(url: str) -> None:
+    """Stop before touching the database the app itself is configured against.
+
+    The fixture below drops every table in the schema. Truncating the real
+    budget database would have been bad; dropping it takes the schema with it.
+    `settings.database_url` is the one address we can be sure is not a
+    throwaway — it is the compose stack holding actual financial data — so
+    matching it is a hard stop rather than a warning in a docstring.
+    """
+    from app.config import settings
+
+    def bare(u: str) -> str:
+        # Compare on host/port/database, so a differing driver or password
+        # cannot smuggle the same database past the check.
+        return make_url(u).set(drivername="", username="", password="").render_as_string()
+
+    try:
+        same = bare(url) == bare(settings.database_url)
+    except Exception:  # an unparseable URL is the caller's problem, not ours
+        return
+    if same:
+        pytest.exit(
+            "TEST_DATABASE_URL points at the same database as settings.database_url. "
+            "The suite drops every table in it. Point it at a throwaway database.",
+            returncode=2,
+        )
+
+
 @pytest.fixture(scope="session")
 def database_url():
     url = os.environ.get("TEST_DATABASE_URL")
     if url:
+        _refuse_the_real_database(url)
         yield url
         return
 
