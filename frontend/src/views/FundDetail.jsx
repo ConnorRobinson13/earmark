@@ -1,39 +1,32 @@
-import { useEffect, useState } from 'react'
 import { Link, useParams, useOutletContext } from 'react-router-dom'
 import { api, fmt } from '../api'
+import { keys, useResource } from '../resource'
+import ErrorCard from '../components/ErrorCard'
 import { Icon } from '../components/Icons'
 
 export default function FundDetail() {
   const { id } = useParams()
-  const { refresh, refreshTick } = useOutletContext()
-  const [fund, setFund] = useState(null)
-  const [txns, setTxns] = useState([])
-  const [err, setErr] = useState('')
+  const { refresh } = useOutletContext()
+  const fundRes = useResource(keys.fund(id))
+  const txnsRes = useResource(keys.fundTransactions(id))
 
-  async function load() {
-    try {
-      const [f, t] = await Promise.all([
-        api.funds.get(id),
-        api.transactions.list({ fund_id: id, limit: 200 }),
-      ])
-      setFund(f); setTxns(t)
-    } catch (e) { setErr(String(e)) }
-  }
-  useEffect(() => { load() }, [id, refreshTick])
+  const fund = fundRes.data
+  const txns = txnsRes.data
 
   async function del(txId) {
     if (!confirm('Delete this transaction?')) return
     await api.transactions.delete(txId)
-    load(); refresh()
+    refresh()
   }
 
-  if (err) return <div className="card"><span className="bad">{err}</span></div>
-  if (!fund) return <div className="muted">Loading…</div>
+  const error = fundRes.error || txnsRes.error
+  if (error) return <ErrorCard error={error} />
+  if (!fund || !txns) return <div className="muted">Loading…</div>
 
-  const balance = Number(fund.balance)
-  const spent = Number(fund.net_spent_this_month || 0)
-  const assigned = Number(fund.assigned_this_month || 0)
-  const available = Number(fund.available_this_month || 0)
+  const balance = fund.balance
+  const spent = fund.net_spent_this_month
+  const assigned = fund.assigned_this_month
+  const available = fund.available_this_month
 
   return (
     <div>
@@ -60,7 +53,7 @@ export default function FundDetail() {
           </div>
           <div className="stat">
             <div className="lbl">{fund.kind === 'goal' ? 'Target' : 'Available'}</div>
-            <div className="val">{fmt(fund.kind === 'goal' ? Number(fund.target || 0) : available)}</div>
+            <div className="val">{fmt(fund.kind === 'goal' ? (fund.target ?? 0) : available)}</div>
           </div>
         </div>
 
@@ -73,7 +66,7 @@ export default function FundDetail() {
               const v = e.target.value.trim()
               if (v === (fund.category || '')) return
               await api.funds.update(fund.id, { category: v || null })
-              load(); refresh()
+              refresh()
             }}
             style={{ maxWidth: 240 }}
           />
@@ -90,7 +83,7 @@ export default function FundDetail() {
       ) : (
         <div className="tx-list">
           {txns.map(t => {
-            const n = Number(t.amount)
+            const n = t.amount
             const isIncome = n >= 0 && (t.type === 'income' || t.type === 'assignment')
             return (
               <div key={t.id} className="tx-row">

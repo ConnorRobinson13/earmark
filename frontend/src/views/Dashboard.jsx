@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link, useOutletContext, useNavigate } from 'react-router-dom'
 import { api, fmt } from '../api'
+import { keys, useResource } from '../resource'
+import ErrorCard from '../components/ErrorCard'
 import InlineAssigned from '../components/InlineAssigned'
 import { thisMonth, monthLabel, shiftMonth } from '../components/MonthSelector'
 import { Icon } from '../components/Icons'
@@ -8,42 +10,37 @@ import ToMovePanel from '../components/ToMovePanel'
 
 export default function Dashboard() {
   const ctx = useOutletContext()
-  const { month, setUnassigned, setInboxCount, refreshTick, refresh } = ctx
-  const [data, setData] = useState(null)
-  const [inbox, setInbox] = useState([])
-  const [accounts, setAccounts] = useState([])
-  const [err, setErr] = useState('')
+  const { month, setUnassigned, setInboxCount, refresh } = ctx
+  const dashboardRes = useResource(keys.dashboard(month))
+  const inboxRes = useResource(keys.inbox())
+  const accountsRes = useResource(keys.accounts())
   const [showNew, setShowNew] = useState(false)
   const nav = useNavigate()
+
+  const data = dashboardRes.data
+  // The badges are nice-to-have: a failed inbox or accounts read leaves the
+  // rest of the dashboard standing, as it did before.
+  const inbox = inboxRes.data || []
+  const accounts = accountsRes.data || []
 
   const isCurrent = month === thisMonth()
   const isPast = month < thisMonth()
 
-  async function load() {
-    try {
-      const [d, ib, ac] = await Promise.all([
-        api.dashboard(month),
-        api.inbox.list().catch(() => []),
-        api.accounts.list().catch(() => []),
-      ])
-      setData(d)
-      setInbox(ib || [])
-      setAccounts(ac || [])
-      setUnassigned(Number(d.unassigned))
-      setInboxCount((ib || []).length)
-    } catch (e) {
-      setErr(String(e))
-    }
-  }
-  useEffect(() => { load() }, [month, refreshTick])
+  // Feed the shell's topbar chip and nav badge.
+  useEffect(() => {
+    if (data) setUnassigned(data.unassigned)
+  }, [data, setUnassigned])
+  useEffect(() => {
+    setInboxCount(inbox.length)
+  }, [inbox.length, setInboxCount])
 
-  if (err) return <div className="card"><span className="bad">{err}</span></div>
+  if (dashboardRes.error) return <ErrorCard error={dashboardRes.error} />
   if (!data) return <div className="muted">Loading…</div>
 
   const ops = data.funds.filter(f => f.kind === 'operational')
   const goals = data.funds.filter(f => f.kind === 'goal')
 
-  const u = Number(data.unassigned)
+  const u = data.unassigned
   const uTone = Math.abs(u) < 0.01 ? 'good' : u > 0 ? 'warn' : 'bad'
   const uMessage = uTone === 'good'
     ? 'Every dollar has a job'
@@ -51,8 +48,8 @@ export default function Dashboard() {
 
   const grouped = groupByCategory(ops)
 
-  const goalsTargetTotal = goals.reduce((s, g) => s + Number(g.target || 0), 0)
-  const goalsBalanceTotal = goals.reduce((s, g) => s + Math.min(Number(g.balance), Number(g.target || 0)), 0)
+  const goalsTargetTotal = goals.reduce((s, g) => s + (g.target ?? 0), 0)
+  const goalsBalanceTotal = goals.reduce((s, g) => s + Math.min(g.balance, g.target ?? 0), 0)
   const goalsPct = goalsTargetTotal > 0 ? Math.round((goalsBalanceTotal / goalsTargetTotal) * 100) : 0
 
   return (
@@ -77,11 +74,11 @@ export default function Dashboard() {
           <div className="hero-tile">
             <div>
               <div className="eyebrow">Net cash · spendable after cards</div>
-              <div className={`num-big ${Number(data.net_cash) < 0 ? 'bad' : 'good'}`}>{fmt(data.net_cash)}</div>
+              <div className={`num-big ${data.net_cash < 0 ? 'bad' : 'good'}`}>{fmt(data.net_cash)}</div>
             </div>
             <div className="sub">
               {fmt(data.liquid_total)} liquid
-              {Number(data.credit_owed) > 0 && ` − ${fmt(data.credit_owed)} owed on cards`}
+              {data.credit_owed > 0 && ` − ${fmt(data.credit_owed)} owed on cards`}
             </div>
           </div>
           <div className="hero-tile">
@@ -145,8 +142,8 @@ export default function Dashboard() {
       {grouped.length === 0 && <div className="card muted">No funds yet.</div>}
 
       {grouped.map(([cat, items]) => {
-        const catSpent = items.reduce((s, f) => s + Number(f.net_spent_this_month || 0), 0)
-        const catAssigned = items.reduce((s, f) => s + Number(f.assigned_this_month || 0), 0)
+        const catSpent = items.reduce((s, f) => s + f.net_spent_this_month, 0)
+        const catAssigned = items.reduce((s, f) => s + f.assigned_this_month, 0)
         return (
           <div key={cat} className="cat-group">
             <div className="cat-head">
@@ -174,7 +171,7 @@ export default function Dashboard() {
           <div className="sec-head">
             <h2>Goals</h2>
             <span className="sub">
-              {goals.length} active · {fmt(goals.reduce((s, g) => s + Number(g.balance), 0))} saved
+              {goals.length} active · {fmt(goals.reduce((s, g) => s + g.balance, 0))} saved
             </span>
             <div className="spacer" />
             <Link to="/goals" className="btn sm">Manage all →</Link>
@@ -201,14 +198,14 @@ export default function Dashboard() {
 const TREND_COLORS = ['#6c8cff', '#39c0a0', '#f0a35e', '#e06c9f', '#9b8cff', '#c0c84a', '#888']
 
 function SpendingTrends() {
-  const [data, setData] = useState(null)
-  useEffect(() => { api.dashboardTrends(6).then(setData).catch(() => {}) }, [])
+  // Decorative: if the read fails there is simply no trend section.
+  const { data } = useResource(keys.dashboardTrends(6))
   if (!data || !data.months.length) return null
 
   const categories = data.categories
   const colorOf = (c) => TREND_COLORS[categories.indexOf(c) % TREND_COLORS.length]
   // Only positive net spend stacks; max month total sets the scale.
-  const monthTotal = (m) => categories.reduce((s, c) => s + Math.max(0, Number(m.categories[c] || 0)), 0)
+  const monthTotal = (m) => categories.reduce((s, c) => s + Math.max(0, m.categories[c] ?? 0), 0)
   const max = Math.max(...data.months.map(monthTotal), 1)
   const fmtMonth = (iso) => {
     const [y, mo] = iso.split('-').map(Number)
@@ -229,7 +226,7 @@ function SpendingTrends() {
               <div key={m.month} className="trend-col">
                 <div className="trend-stack" title={`${fmt(total)} total`}>
                   {categories.map(c => {
-                    const v = Math.max(0, Number(m.categories[c] || 0))
+                    const v = Math.max(0, m.categories[c] ?? 0)
                     if (v === 0) return null
                     return (
                       <div key={c} className="trend-seg"
@@ -257,9 +254,9 @@ function SpendingTrends() {
 }
 
 function FundRow({ fund, month, readOnly, onClick, onChange }) {
-  const spent = Number(fund.net_spent_this_month || 0)
-  const available = Number(fund.available_this_month || 0)
-  const balance = Number(fund.balance)
+  const spent = fund.net_spent_this_month
+  const available = fund.available_this_month
+  const balance = fund.balance
   const pct = available > 0 ? Math.min(100, (spent / available) * 100) : (spent > 0 ? 100 : 0)
   const tone = balance < 0 ? 'over' : pct > 90 ? 'warn' : 'ok'
 
@@ -315,14 +312,14 @@ function FundRow({ fund, month, readOnly, onClick, onChange }) {
 function GoalMiniCard({ goal, month, readOnly, onChange }) {
   const isContribution = goal.goal_type === 'contribution'
   const isDebt = goal.goal_type === 'debt'
-  const target = Number(goal.target || 0)
+  const target = goal.target ?? 0
   const progressValue = isContribution
-    ? Number(goal.contribution_ytd || 0)
-    : Number(goal.balance)
+    ? (goal.contribution_ytd ?? 0)
+    : goal.balance
   const pct = target > 0 ? Math.min(100, Math.max(0, (progressValue / target) * 100)) : 0
   const remaining = Math.max(0, target - progressValue)
-  const assigned = Number(goal.assigned_this_month || 0)
-  const actualMin = isDebt && goal.min_payment != null ? Number(goal.min_payment) : null
+  const assigned = goal.assigned_this_month
+  const actualMin = isDebt && goal.min_payment != null ? goal.min_payment : null
   const minMonthly = actualMin != null ? actualMin : minMonthlyNeeded(progressValue, target, goal.target_date, month)
 
   return (
@@ -380,7 +377,7 @@ function monthsBetween(fromMonth, targetDate) {
 
 function minMonthlyNeeded(balance, target, targetDate, viewMonth) {
   if (!target || !targetDate) return null
-  const remaining = Number(target) - Number(balance)
+  const remaining = target - balance
   if (remaining <= 0) return 0
   const months = monthsBetween(viewMonth, targetDate)
   if (months == null) return null
@@ -390,8 +387,8 @@ function minMonthlyNeeded(balance, target, targetDate, viewMonth) {
 function PlannedIncomeCell({ month, planned, actual, readOnly, onChange }) {
   const [editing, setEditing] = useState(false)
   const [val, setVal] = useState('')
-  const p = Number(planned || 0)
-  const a = Number(actual || 0)
+  const p = planned ?? 0
+  const a = actual ?? 0
   const pct = p > 0 ? Math.min(100, (a / p) * 100) : 0
   const delta = a - p
   const onTrack = Math.abs(delta) < 1
