@@ -7,15 +7,15 @@ from sqlalchemy.orm import Session
 
 from .. import schemas
 from ..db import get_db
-from ..models import Account, AccountType, Fund
+from ..models import Account, AccountType
 from ..month import (
     current_month,
     last_day_of_month,
-    next_month,
     parse_month_or_current,
     previous_month,
 )
 from ..services.balances import (
+    active_funds_in_month,
     all_funds_total,
     enrich_funds,
     goals_saved_in_month,
@@ -62,7 +62,6 @@ def dashboard(
     db: Session = Depends(get_db),
 ):
     month_first = parse_month_or_current(month)
-    nxt = next_month(month_first)
     as_of = last_day_of_month(month_first)
     # liquid cash = checking + savings; credit cards = what you owe.
     # "liquid" = money available for general spending. Emergency fund and
@@ -73,14 +72,7 @@ def dashboard(
             Account.type == AccountType.credit
         )
     )
-    funds = db.scalars(
-        select(Fund).where(
-            Fund.archived_at.is_(None),
-            Fund.created_at < nxt,
-            (Fund.effective_to_month.is_(None)) | (Fund.effective_to_month >= month_first),
-        ).order_by(Fund.sort_order, Fund.id)
-    ).all()
-    enriched = enrich_funds(db, funds, month=month_first)
+    enriched = enrich_funds(db, active_funds_in_month(db, month_first), month=month_first)
     spent = gross_spent_in_month(db, month_first)
     liquid_d = Decimal(liquid or 0)
     credit_d = Decimal(credit_owed or 0)

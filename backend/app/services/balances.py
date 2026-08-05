@@ -232,8 +232,31 @@ def all_funds_total(db: Session, as_of: date | None = None) -> Decimal:
 
 
 def active_funds_in_month(db: Session, month: date) -> list[Fund]:
-    """Funds visible in `month` — same rule the dashboard uses: not archived,
-    created before the month ends, and not ended before the month starts."""
+    """Every fund visible in `month`, in display order.
+
+    The one definition of "active in a month": the dashboard, the bulk copy and
+    the cash-flow projection all read the month's funds through here, so they
+    cannot answer the question differently. A fund is active when all three of
+    these hold.
+
+    *Not archived.* Archiving is global, not month-scoped — it sweeps the
+    fund's balance to Unassigned *today* and hides the fund from the funds
+    list, the headline totals, net worth and the categoriser alike. So an
+    archived fund is gone from past months too, not merely from the ones after
+    it was archived. This is the clause the bulk copy used to disagree on: it
+    read `archived_at` as a timestamp a month could sit before, which let
+    copying assignments forward pick up a fund the user had deleted and bring
+    it back. It also risked un-hiding the `[History]` funds the EveryDollar
+    import archives on creation, which exist only to hold imported history and
+    must never surface.
+
+    *Created before the month ended.* A fund created mid-month is active in
+    that month; a fund created after it is not.
+
+    *Not already ended when the month began.* `effective_to_month` is the
+    month-scoped ending — what "delete from this month forward" sets — and it
+    is the only clause that a month can legitimately fall either side of.
+    """
     first, nxt = month_bounds(month)
     return list(
         db.scalars(
