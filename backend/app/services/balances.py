@@ -250,8 +250,8 @@ def active_funds_in_month(db: Session, month: date) -> list[Fund]:
     import archives on creation, which exist only to hold imported history and
     must never surface.
 
-    *Created before the month ended.* A fund created mid-month is active in
-    that month; a fund created after it is not.
+    *Created before the month ended.* A month a fund existed for any part of
+    is a month the fund belongs to.
 
     *Not already ended when the month began.* `effective_to_month` is the
     month-scoped ending — what "delete from this month forward" sets — and it

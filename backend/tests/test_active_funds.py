@@ -89,11 +89,12 @@ def test_a_fund_ended_before_the_month_is_not_active_in_it(db):
     assert active_funds_in_month(db, NEXT) == []
 
 
-def test_a_fund_ended_after_this_month_is_still_active_in_it(db):
-    """The other side of the same clause: ending a fund from April leaves
-    March — and every month before it — intact."""
-    _fund(db, "Ends After March", effective_to_month=date(2026, 3, 31))
-    assert _names(active_funds_in_month(db, MONTH)) == ["Ends After March"]
+def test_a_fund_is_still_active_in_its_final_month(db):
+    """The other side of the same clause — the same fund as above, seen from
+    the month it ends in. Ending a fund from April leaves March, and every
+    month before it, intact."""
+    _fund(db, "Ends With March", effective_to_month=date(2026, 3, 31))
+    assert _names(active_funds_in_month(db, MONTH)) == ["Ends With March"]
 
 
 def test_active_funds_come_back_in_display_order(db):
@@ -120,14 +121,16 @@ def mixed_funds(db) -> dict[str, Fund]:
     return made
 
 
-#: What the predicate says about `mixed_funds` in March — every caller below
-#: has to agree with this list.
-ACTIVE_IN_MARCH = ["Groceries", "Mid-March"]
+#: What the predicate says about `mixed_funds`, in display order — every caller
+#: below has to agree with this list. Every cutoff in the fixture is in early
+#: 2026, so this is the answer for March 2026 and for every month since, which
+#: is what lets the projector test below ask about the current month.
+ACTIVE_FUNDS = ["Groceries", "Mid-March"]
 
 
 def test_the_dashboard_shows_the_active_funds(client, mixed_funds):
     body = client.get("/dashboard", params={"month": "2026-03"}).json()
-    assert [f["name"] for f in body["funds"]] == ACTIVE_IN_MARCH
+    assert [f["name"] for f in body["funds"]] == ACTIVE_FUNDS
 
 
 def test_the_cashflow_projector_charges_the_active_funds(db, mixed_funds):
@@ -140,7 +143,7 @@ def test_the_cashflow_projector_charges_the_active_funds(db, mixed_funds):
     """
     month = date.today().replace(day=1)
     inputs = gather_cashflow_inputs(db, month)
-    assert [c.name for c in inputs.months[-1].funds] == ACTIVE_IN_MARCH
+    assert [c.name for c in inputs.months[-1].funds] == ACTIVE_FUNDS
 
 
 def test_bulk_copy_copies_the_active_funds(client, db, mixed_funds):
@@ -160,9 +163,9 @@ def test_bulk_copy_copies_the_active_funds(client, db, mixed_funds):
         "/bulk/copy-assignments", json={"from_month": "2026-03", "to_month": "2026-04"}
     ).json()
 
-    assert body["funds_updated"] == len(ACTIVE_IN_MARCH)
+    assert body["funds_updated"] == len(ACTIVE_FUNDS)
     assert Decimal(body["total_moved"]) == Decimal("200.00")
-    assert [f["name"] for f in client.get("/dashboard", params={"month": "2026-04"}).json()["funds"]] == ACTIVE_IN_MARCH
+    assert [f["name"] for f in client.get("/dashboard", params={"month": "2026-04"}).json()["funds"]] == ACTIVE_FUNDS
 
 
 def test_bulk_copy_no_longer_resurrects_an_archived_fund(client, db, mixed_funds):

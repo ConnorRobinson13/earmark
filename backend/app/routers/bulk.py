@@ -38,9 +38,9 @@ def copy_assignments(body: CopyAssignmentsBody, db: Session = Depends(get_db)):
     Which funds move is `active_funds_in_month(src)` and nothing else. A fund
     the source month shows but the target month has ended — "deleted from
     `to_month` forward" — is reinstated, since copying the month forward is
-    precisely the request to have it back. An *archived* fund is not: archiving
-    is global rather than month-scoped, so an archived fund is not active in
-    the source month either and never enters this list.
+    precisely the request to have it back. An archived fund is never in that
+    set, so copying forward cannot bring one back; see the predicate for why
+    archiving is not month-scoped.
     """
     src = parse_month(body.from_month)
     dst = parse_month(body.to_month)
