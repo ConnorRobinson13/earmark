@@ -234,10 +234,10 @@ def all_funds_total(db: Session, as_of: date | None = None) -> Decimal:
 def active_funds_in_month(db: Session, month: date) -> list[Fund]:
     """Every fund visible in `month`, in display order.
 
-    The one definition of "active in a month": the dashboard, the bulk copy and
-    the cash-flow projection all read the month's funds through here, so they
-    cannot answer the question differently. A fund is active when all three of
-    these hold.
+    The one definition of "active in a month": the dashboard, the bulk copy,
+    the cash-flow projection and the pending-settlements list all read the
+    month's funds through here, so they cannot answer the question differently.
+    A fund is active when all three of these hold.
 
     *Not archived.* Archiving is global, not month-scoped — it sweeps the
     fund's balance to Unassigned *today* and hides the fund from the funds

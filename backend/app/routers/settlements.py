@@ -22,7 +22,7 @@ from ..db import get_db
 from ..models import Account, AccountType, Fund, FundKind, GoalSettlement
 from ..month import parse_month_or_current
 from ..services import settlements as settlements_svc
-from ..services.balances import goal_pending_settlement
+from ..services.balances import active_funds_in_month, goal_pending_settlement
 
 router = APIRouter(prefix="/settlements", tags=["settlements"])
 
@@ -52,9 +52,13 @@ def list_pending(month: str | None = None, db: Session = Depends(get_db)):
     )
     suggested_from = first_checking.id if first_checking else None
 
-    goals = db.scalars(
-        select(Fund).where(Fund.kind == FundKind.goal, Fund.archived_at.is_(None))
-    ).all()
+    # Which goals the month shows is the shared question, so it gets the shared
+    # answer: a goal ended from an earlier month, or created after this one, is
+    # no more settleable here than it is visible on the dashboard. Kind is all
+    # this caller narrows by, and it narrows the loaded list rather than the
+    # query — a month's funds are few, and a `kind=` argument on the predicate
+    # would be one every other caller passes nothing to.
+    goals = [f for f in active_funds_in_month(db, month_date) if f.kind == FundKind.goal]
 
     items: list[ToMoveItem] = []
     for g in goals:
