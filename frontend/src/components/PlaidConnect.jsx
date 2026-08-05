@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { usePlaidLink } from 'react-plaid-link'
 import { api, fmt } from '../api'
+import { relativeTime } from '../format'
 import { Icon } from './Icons'
 
 /**
@@ -97,7 +98,7 @@ export function LinkedItems({ items, onUnlink }) {
                   <div className="spacer" />
                   <span className="num" style={{ fontWeight: 500 }}>{fmt(a.current_balance)}</span>
                   {a.last_synced_at && (
-                    <span className="muted small">· synced {timeAgo(a.last_synced_at)}</span>
+                    <span className="muted small">· synced {relativeTime(a.last_synced_at)}</span>
                   )}
                 </div>
               ))}
@@ -107,13 +108,4 @@ export function LinkedItems({ items, onUnlink }) {
       ))}
     </div>
   )
-}
-
-function timeAgo(iso) {
-  const t = new Date(iso).getTime()
-  const s = Math.floor((Date.now() - t) / 1000)
-  if (s < 60) return 'just now'
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`
-  return `${Math.floor(s / 86400)}d ago`
 }

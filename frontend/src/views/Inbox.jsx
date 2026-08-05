@@ -1,38 +1,42 @@
-import { useEffect, useState } from 'react'
-import { useOutletContext } from 'react-router-dom'
+import { useState } from 'react'
 import { api, fmt } from '../api'
+import { keys, useInvalidate, useResource, writes } from '../resource'
+import ErrorCard from '../components/ErrorCard'
 import { Icon } from '../components/Icons'
 
 export default function Inbox() {
-  const { refresh, refreshTick } = useOutletContext()
-  const [items, setItems] = useState([])
-  const [funds, setFunds] = useState([])
-  const [idx, setIdx] = useState(0)
+  const inboxRes = useResource(keys.inbox())
+  const fundsRes = useResource(keys.funds())
+  const invalidate = useInvalidate()
+  // Items this session has already ruled on. The refetch that follows a
+  // decision removes them for real; until it lands this is what stops the item
+  // just approved from sitting there a second time.
+  const [decided, setDecided] = useState(() => new Set())
   const [override, setOverride] = useState('')
-  const [err, setErr] = useState('')
+  const [actionErr, setActionErr] = useState(null)
   const [busy, setBusy] = useState(false)
   // For income items: user picks "Paycheck" (untagged, doesn't bump Unassigned —
   // already covered by planned income) OR a fund (= reimbursement, credits that fund).
   const [incomeMode, setIncomeMode] = useState('paycheck')
 
-  async function load() {
-    try {
-      const [i, f] = await Promise.all([api.inbox.list(), api.funds.list()])
-      setItems(i); setFunds(f); setIdx(0); setOverride('')
-    } catch (e) { setErr(String(e)) }
-  }
-  useEffect(() => { load() }, [refreshTick])
+  const error = inboxRes.error || fundsRes.error
+  if (error) return <ErrorCard error={error} />
+  if (!inboxRes.data || !fundsRes.data) return <div className="muted">Loading…</div>
+
+  const pending = inboxRes.data
+  const funds = fundsRes.data
+  const items = pending.filter(it => !decided.has(it.id))
+  const done = pending.length - items.length
+  const item = items[0]
 
   async function syncPlaid() {
-    setBusy(true); setErr('')
-    try { await api.plaid.sync(); await load(); refresh() }
-    catch (e) { setErr(String(e)) }
+    setBusy(true); setActionErr(null)
+    try { await api.plaid.sync(); invalidate(writes.plaid) }
+    catch (e) { setActionErr(e) }
     finally { setBusy(false) }
   }
 
-  if (err) return <div className="card"><span className="bad">{err}</span></div>
-
-  if (items.length === 0 || idx >= items.length) {
+  if (!item) {
     return (
       <div className="inbox-wrap">
         <div className="inbox-empty">
@@ -42,20 +46,28 @@ export default function Inbox() {
           <button className="btn primary" onClick={syncPlaid} disabled={busy}>
             <Icon name="sync" /> {busy ? 'Syncing…' : 'Sync Plaid'}
           </button>
+          {actionErr && <ErrorCard error={actionErr} />}
         </div>
       </div>
     )
   }
 
-  const item = items[idx]
   const suggestedFund = funds.find(f => f.id === item.suggested_fund_id)
   const chosenId = override || (item.suggested_fund_id ? String(item.suggested_fund_id) : '')
-  const amount = Number(item.amount)
+  const amount = item.amount
   const isIncome = amount < 0
   const initials = (item.merchant || '?').trim().slice(0, 2).toUpperCase()
 
+  /** Hide the item we just ruled on, and pull the fresh list in behind it. */
+  function settled(decision) {
+    setDecided(d => new Set(d).add(item.id))
+    setOverride('')
+    setIncomeMode('paycheck')
+    invalidate(decision)
+  }
+
   async function approve() {
-    setBusy(true); setErr('')
+    setBusy(true); setActionErr(null)
     try {
       if (isIncome && incomeMode === 'paycheck') {
         await api.inbox.approve(item.id, null, true)
@@ -63,29 +75,28 @@ export default function Inbox() {
         if (!chosenId) { setBusy(false); return }
         await api.inbox.approve(item.id, Number(chosenId), false)
       }
-      setIdx(idx + 1); setOverride(''); setIncomeMode('paycheck')
-      refresh()
-    } catch (e) { setErr(String(e)) }
+      settled(writes.inboxApproved)
+    } catch (e) { setActionErr(e) }
     finally { setBusy(false) }
   }
 
   async function reject() {
-    setBusy(true); setErr('')
+    setBusy(true); setActionErr(null)
     try {
       await api.inbox.reject(item.id)
-      setIdx(idx + 1); setOverride('')
-      refresh()
-    } catch (e) { setErr(String(e)) }
+      // A rejection only drops the row — nothing reaches the ledger.
+      settled(writes.inboxRejected)
+    } catch (e) { setActionErr(e) }
     finally { setBusy(false) }
   }
 
-  const progressPct = ((idx) / items.length) * 100
+  const progressPct = (done / pending.length) * 100
 
   return (
     <div className="inbox-wrap">
       <div className="inbox-progress">
         <div className="bar"><div style={{ width: `${progressPct}%` }} /></div>
-        <div className="count">{idx + 1} / {items.length}</div>
+        <div className="count">{done + 1} / {pending.length}</div>
       </div>
 
       <div className="txcard">
@@ -153,7 +164,7 @@ export default function Inbox() {
           </>
         )}
 
-        {err && <div className="bad small" style={{ marginBottom: 8 }}>{err}</div>}
+        {actionErr && <ErrorCard error={actionErr} />}
 
         <div className="tx-actions">
           <button className="btn reject-btn" onClick={reject} disabled={busy}>

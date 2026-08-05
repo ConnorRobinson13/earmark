@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { api, fmt } from '../api'
-import { keys, useResource } from '../resource'
+import { keys, useInvalidate, useResource, writes } from '../resource'
 import ErrorCard from './ErrorCard'
 import { Icon } from './Icons'
 
@@ -12,8 +12,9 @@ import { Icon } from './Icons'
  * out of checking yet. Clicking "Mark moved" records a settlement, bumps
  * the source account down and the goal's backing account up.
  */
-export default function ToMovePanel({ month, accounts, onMoved }) {
-  const { data, error, reload } = useResource(keys.pendingSettlements(month))
+export default function ToMovePanel({ month, accounts }) {
+  const { data, error } = useResource(keys.pendingSettlements(month))
+  const invalidate = useInvalidate()
   const [settleErr, setSettleErr] = useState(null)
   const [busyId, setBusyId] = useState(null)
 
@@ -32,8 +33,9 @@ export default function ToMovePanel({ month, accounts, onMoved }) {
         from_account_id: fromAccountId || null,
         settled_at: lastDayOf(month),
       })
-      reload()
-      onMoved?.()
+      // `balances` covers this panel's own key, so the list reloads from the
+      // same call that refreshes the accounts and the dashboard.
+      invalidate(writes.balances)
     } catch (e) {
       // Writes still go through `api`, which throws a plain Error; ErrorCard
       // reads whichever kind it is given.

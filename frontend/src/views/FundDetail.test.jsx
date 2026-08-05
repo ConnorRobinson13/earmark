@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { screen } from '@testing-library/react'
-import { renderApp, fund } from '../test/renderApp'
+import { renderApp, fund, shellRoutes, SHELL_KEYS } from '../test/renderApp'
 import { ApiError, keys } from '../resource'
 
 const GROCERIES = fund({
@@ -20,6 +20,7 @@ const TXNS = [
 
 function routes(overrides = {}) {
   return {
+    ...shellRoutes(),
     [keys.fund('7')]: GROCERIES,
     [keys.fundTransactions('7')]: TXNS,
     ...overrides,
@@ -46,11 +47,12 @@ describe('FundDetail', () => {
     expect(screen.getByText('-$412.35')).toBeTruthy()
   })
 
-  it('reads exactly the two keys it needs', async () => {
+  it('reads exactly the two keys it needs, on top of the shell’s', async () => {
     const { adapter } = renderApp(routes(), { route: '/funds/7' })
 
     await screen.findByRole('heading', { name: 'Groceries' })
-    expect(adapter.requested.sort()).toEqual([keys.fund('7'), keys.fundTransactions('7')].sort())
+    const own = adapter.requested.filter(k => !SHELL_KEYS.includes(k))
+    expect(own.sort()).toEqual([keys.fund('7'), keys.fundTransactions('7')].sort())
   })
 
   it('shows the server message when the fund is missing', async () => {

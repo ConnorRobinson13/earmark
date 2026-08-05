@@ -1,31 +1,42 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
-import { api, fmt, todayISO } from '../api'
+import { api, fmt } from '../api'
+import { keys, useInvalidate, useResource, writes } from '../resource'
+import ErrorCard from '../components/ErrorCard'
+import { dateInMonth } from '../components/MonthSelector'
 import { Icon } from '../components/Icons'
 
 export default function Planner() {
-  const { refresh, refreshTick } = useOutletContext()
-  const [dash, setDash] = useState(null)
-  const [funds, setFunds] = useState([])
-  const [template, setTemplate] = useState([])
+  const { month } = useOutletContext()
+  // One read, not two: the dashboard carries the funds enriched for the
+  // selected month, which is exactly what the planner is planning against.
+  const dashRes = useResource(keys.dashboard(month))
+  const templateRes = useResource(keys.templates())
+  const invalidate = useInvalidate()
   const [assigns, setAssigns] = useState({})
   const [income, setIncome] = useState('')
-  const [err, setErr] = useState('')
+  const [saveErr, setSaveErr] = useState(null)
   const [busy, setBusy] = useState(false)
 
-  async function load() {
-    try {
-      const [d, f, t] = await Promise.all([api.dashboard(), api.funds.list(), api.templates.list()])
-      setDash(d); setFunds(f); setTemplate(t)
-    } catch (e) { setErr(String(e)) }
+  // The template rows are edited in place before they are saved, so they live
+  // in local state. A fresh read — after a save, or after anything else
+  // invalidates `/templates` — replaces the draft wholesale.
+  const [draft, setDraft] = useState([])
+  const [drafted, setDrafted] = useState(null)
+  if (templateRes.data && templateRes.data !== drafted) {
+    setDrafted(templateRes.data)
+    setDraft(templateRes.data)
   }
-  useEffect(() => { load() }, [refreshTick])
+
+  const dash = dashRes.data
+  const funds = dash?.funds ?? []
+  const template = draft
 
   const templatedFundIds = useMemo(() => new Set(template.map(t => t.fund_id)), [template])
   const flexFunds = funds.filter(f => !templatedFundIds.has(f.id))
   const assignedByFund = useMemo(() => {
     const m = new Map()
-    for (const f of funds) m.set(f.id, Number(f.assigned_this_month || 0))
+    for (const f of funds) m.set(f.id, f.assigned_this_month || 0)
     return m
   }, [funds])
 
@@ -41,60 +52,62 @@ export default function Planner() {
   async function postIncome() {
     const n = Number(income)
     if (!n) return
-    setBusy(true); setErr('')
+    setBusy(true); setSaveErr(null)
     try {
       await api.transactions.quickAdd({
-        fund_id: null, amount: n, date: todayISO(),
+        fund_id: null, amount: n, date: dateInMonth(month),
         merchant: 'Income', type: 'income',
       })
       setIncome('')
-      await load(); refresh()
-    } catch (e) { setErr(String(e)) }
+      invalidate(writes.ledger)
+    } catch (e) { setSaveErr(e) }
     finally { setBusy(false) }
   }
 
   async function applyTemplate() {
-    setBusy(true); setErr('')
+    setBusy(true); setSaveErr(null)
     try {
-      await api.templates.apply(todayISO())
-      await load(); refresh()
-    } catch (e) { setErr(String(e)) }
+      // Applied to the month in the top bar, not to whatever month today is in.
+      await api.templates.apply(month)
+      invalidate(writes.ledger)
+    } catch (e) { setSaveErr(e) }
     finally { setBusy(false) }
   }
 
   async function commitAssigns() {
-    setBusy(true); setErr('')
+    setBusy(true); setSaveErr(null)
     try {
       for (const [fid, v] of Object.entries(assigns)) {
         const n = Number(v)
         if (!n) continue
-        await api.transactions.assign({ fund_id: Number(fid), amount: n, date: todayISO() })
+        await api.transactions.assign({ fund_id: Number(fid), amount: n, date: dateInMonth(month) })
       }
       setAssigns({})
-      await load(); refresh()
-    } catch (e) { setErr(String(e)) }
+      invalidate(writes.ledger)
+    } catch (e) { setSaveErr(e) }
     finally { setBusy(false) }
   }
 
   async function saveTemplate() {
-    setBusy(true); setErr('')
+    setBusy(true); setSaveErr(null)
     try {
       await api.templates.replace(
         template
           .filter(t => t.fund_id && Number(t.planned_amount))
           .map(t => ({ fund_id: Number(t.fund_id), planned_amount: Number(t.planned_amount) }))
       )
-      await load()
-    } catch (e) { setErr(String(e)) }
+      invalidate(writes.template)
+    } catch (e) { setSaveErr(e) }
     finally { setBusy(false) }
   }
 
   function updateTemplateLine(i, k, v) {
-    setTemplate(t => t.map((row, idx) => idx === i ? { ...row, [k]: v } : row))
+    setDraft(t => t.map((row, idx) => idx === i ? { ...row, [k]: v } : row))
   }
 
-  if (err) return <div className="card"><span className="bad">{err}</span></div>
-  if (!dash) return <div className="muted">Loading…</div>
+  const error = dashRes.error || templateRes.error
+  if (error) return <ErrorCard error={error} />
+  if (!dash || !templateRes.data) return <div className="muted">Loading…</div>
 
   const projTone = Math.abs(projUnassigned) < 0.01 ? 'good' : projUnassigned > 0 ? 'warn' : 'bad'
   const projMessage = projTone === 'good'
@@ -107,6 +120,8 @@ export default function Planner() {
         <h2>Monthly planner</h2>
         <span className="sub">income → fixed → flex → review</span>
       </div>
+
+      {saveErr && <ErrorCard error={saveErr} />}
 
       <div className="plan-grid">
         <div>
@@ -142,13 +157,13 @@ export default function Planner() {
                   </select>
                   <input className="amt-input" inputMode="decimal" value={row.planned_amount || ''}
                     onChange={e => updateTemplateLine(i, 'planned_amount', e.target.value)} placeholder="0" />
-                  <button className="btn ghost sm" onClick={() => setTemplate(t => t.filter((_, idx) => idx !== i))}>
+                  <button className="btn ghost sm" onClick={() => setDraft(t => t.filter((_, idx) => idx !== i))}>
                     <Icon name="x" size={12} />
                   </button>
                 </div>
               ))}
               <div className="row" style={{ marginTop: 12, gap: 8 }}>
-                <button className="btn sm" onClick={() => setTemplate(t => [...t, { fund_id: '', planned_amount: '' }])}>
+                <button className="btn sm" onClick={() => setDraft(t => [...t, { fund_id: '', planned_amount: '' }])}>
                   <Icon name="plus" size={12} /> Add line
                 </button>
                 <button className="btn sm" onClick={saveTemplate} disabled={busy}>Save template</button>

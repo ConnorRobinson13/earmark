@@ -1,16 +1,17 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Link, useOutletContext, useNavigate } from 'react-router-dom'
 import { api, fmt } from '../api'
-import { keys, useResource } from '../resource'
+import { keys, useInvalidate, useResource, writes } from '../resource'
 import ErrorCard from '../components/ErrorCard'
+import GoalSummary, { goalProgress } from '../components/GoalSummary'
 import InlineAssigned from '../components/InlineAssigned'
-import { thisMonth, monthLabel, shiftMonth } from '../components/MonthSelector'
+import { thisMonth, shiftMonth } from '../components/MonthSelector'
+import { monthLabel, monthShort } from '../format'
 import { Icon } from '../components/Icons'
 import ToMovePanel from '../components/ToMovePanel'
 
 export default function Dashboard() {
-  const ctx = useOutletContext()
-  const { month, setUnassigned, setInboxCount, refresh } = ctx
+  const { month } = useOutletContext()
   const dashboardRes = useResource(keys.dashboard(month))
   const inboxRes = useResource(keys.inbox())
   const accountsRes = useResource(keys.accounts())
@@ -23,16 +24,7 @@ export default function Dashboard() {
   const inbox = inboxRes.data || []
   const accounts = accountsRes.data || []
 
-  const isCurrent = month === thisMonth()
   const isPast = month < thisMonth()
-
-  // Feed the shell's topbar chip and nav badge.
-  useEffect(() => {
-    if (data) setUnassigned(data.unassigned)
-  }, [data, setUnassigned])
-  useEffect(() => {
-    setInboxCount(inbox.length)
-  }, [inbox.length, setInboxCount])
 
   if (dashboardRes.error) return <ErrorCard error={dashboardRes.error} />
   if (!data) return <div className="muted">Loading…</div>
@@ -66,7 +58,7 @@ export default function Dashboard() {
           <div className="pill-row">
             <Link to="/planner" className="btn primary sm">Open planner →</Link>
             <Link to="/quick-add" className="btn sm">+ Record income</Link>
-            <CopyPrevMonthButton currentMonth={month} onDone={refresh} />
+            <CopyPrevMonthButton currentMonth={month} />
           </div>
         </div>
 
@@ -99,7 +91,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <ToMovePanel month={month} accounts={accounts} onMoved={refresh} />
+      <ToMovePanel month={month} accounts={accounts} />
 
       {/* ─── SECONDARY METRICS ─── */}
       <div className="metric-row" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
@@ -110,7 +102,6 @@ export default function Dashboard() {
             planned={data.planned_income}
             actual={data.income_this_month}
             readOnly={isPast}
-            onChange={refresh}
           />
         </div>
         <div className="cell">
@@ -154,7 +145,7 @@ export default function Dashboard() {
             </div>
             <div className="fund-list">
               {items.map(f => (
-                <FundRow key={f.id} fund={f} month={month} readOnly={isPast} onChange={refresh}
+                <FundRow key={f.id} fund={f} month={month} readOnly={isPast}
                   onClick={() => nav(`/funds/${f.id}`)} />
               ))}
             </div>
@@ -178,7 +169,7 @@ export default function Dashboard() {
           </div>
           <div className="goal-grid">
             {goals.map(g => (
-              <GoalMiniCard key={g.id} goal={g} month={month} readOnly={isPast} onChange={refresh} />
+              <GoalMiniCard key={g.id} goal={g} month={month} readOnly={isPast} />
             ))}
           </div>
         </>
@@ -187,7 +178,7 @@ export default function Dashboard() {
       {showNew && (
         <NewFundModal
           onClose={() => setShowNew(false)}
-          onCreated={() => { setShowNew(false); refresh() }}
+          onCreated={() => setShowNew(false)}
           existingCategories={[...new Set(ops.map(f => f.category).filter(Boolean))]}
         />
       )}
@@ -207,10 +198,6 @@ function SpendingTrends() {
   // Only positive net spend stacks; max month total sets the scale.
   const monthTotal = (m) => categories.reduce((s, c) => s + Math.max(0, m.categories[c] ?? 0), 0)
   const max = Math.max(...data.months.map(monthTotal), 1)
-  const fmtMonth = (iso) => {
-    const [y, mo] = iso.split('-').map(Number)
-    return new Date(y, mo - 1, 1).toLocaleDateString('en-US', { month: 'short' })
-  }
 
   return (
     <>
@@ -236,7 +223,7 @@ function SpendingTrends() {
                   })}
                 </div>
                 <div className="trend-total">{total > 0 ? fmt(total) : '—'}</div>
-                <div className="trend-label">{fmtMonth(m.month)}</div>
+                <div className="trend-label">{monthShort(m.month)}</div>
               </div>
             )
           })}
@@ -253,7 +240,8 @@ function SpendingTrends() {
   )
 }
 
-function FundRow({ fund, month, readOnly, onClick, onChange }) {
+function FundRow({ fund, month, readOnly, onClick }) {
+  const invalidate = useInvalidate()
   const spent = fund.net_spent_this_month
   const available = fund.available_this_month
   const balance = fund.balance
@@ -269,7 +257,7 @@ function FundRow({ fund, month, readOnly, onClick, onChange }) {
 
       <div className="right" onClick={(e) => e.stopPropagation()}>
         <div className="col-lbl">assigned</div>
-        <InlineAssigned fund={fund} month={month} readOnly={readOnly} onChange={onChange} />
+        <InlineAssigned fund={fund} month={month} readOnly={readOnly} />
       </div>
 
       <div className="right col-balance-meta">
@@ -295,7 +283,7 @@ function FundRow({ fund, month, readOnly, onClick, onChange }) {
           ]
           if (!confirm(lines.join('\n\n'))) return
           await api.funds.archive(fund.id, month)
-          onChange?.()
+          invalidate(writes.ledger)
         }}
       >
         <Icon name="x" size={14} />
@@ -309,82 +297,33 @@ function FundRow({ fund, month, readOnly, onClick, onChange }) {
   )
 }
 
-function GoalMiniCard({ goal, month, readOnly, onChange }) {
-  const isContribution = goal.goal_type === 'contribution'
-  const isDebt = goal.goal_type === 'debt'
-  const target = goal.target ?? 0
-  const progressValue = isContribution
-    ? (goal.contribution_ytd ?? 0)
-    : goal.balance
-  const pct = target > 0 ? Math.min(100, Math.max(0, (progressValue / target) * 100)) : 0
-  const remaining = Math.max(0, target - progressValue)
+function GoalMiniCard({ goal, month, readOnly }) {
+  const progress = goalProgress(goal, month)
+  const { isDebt, remaining, fixedPayment, minMonthly } = progress
   const assigned = goal.assigned_this_month
-  const actualMin = isDebt && goal.min_payment != null ? goal.min_payment : null
-  const minMonthly = actualMin != null ? actualMin : minMonthlyNeeded(progressValue, target, goal.target_date, month)
 
   return (
     <div className="goal-card">
-      <Link to="/goals" style={{ color: 'inherit', display: 'block' }}>
-        <div className="row" style={{ gap: 6, alignItems: 'center' }}>
-          <div className="name">{goal.name}</div>
-          <span className={`goal-badge ${isContribution ? 'contribution' : isDebt ? 'debt' : 'savings'}`}>
-            {isContribution ? 'contribution' : isDebt ? 'debt' : 'savings'}
-          </span>
-        </div>
-        <div className="deadline">
-          {goal.target_date
-            ? `${isDebt ? 'payoff by' : 'by'} ${new Date(goal.target_date + 'T00:00:00').toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
-            : 'no deadline'}
-        </div>
-      </Link>
-      <div className="amount-row">
-        <div className="big">{fmt(isDebt ? remaining : progressValue)}</div>
-        <div className="target">
-          {isContribution ? `of ${fmt(target)} ${goal.contribution_year ?? ''}` : isDebt ? `of ${fmt(target)} owed` : `of ${fmt(target)}`}
-        </div>
-      </div>
-      <div className="progress-track">
-        <div className="progress-fill" style={{ width: `${pct}%` }} />
-      </div>
-      <div className="footer-row">
-        <span>{pct.toFixed(0)}% {isContribution ? 'contributed' : isDebt ? 'paid off' : 'complete'}</span>
-        <span>{isDebt ? (remaining > 0 ? `${fmt(remaining)} left` : 'paid off 🎉') : `${fmt(remaining)} to go`}</span>
-      </div>
+      <GoalSummary goal={goal} progress={progress} linkTo="/goals" />
       <div className="goal-assign-row" onClick={(e) => e.stopPropagation()}>
         <div className="col">
           <span className="col-lbl">Assigned this month</span>
           {minMonthly != null && remaining > 0 && (
             <span className="goal-min small muted">
-              min <span className="num">{fmt(minMonthly)}</span>/mo{actualMin != null ? '' : isDebt ? ' to pay off on time' : ' to hit target'}
+              min <span className="num">{fmt(minMonthly)}</span>/mo{fixedPayment != null ? '' : isDebt ? ' to pay off on time' : ' to hit target'}
             </span>
           )}
         </div>
         <div className={`assign-wrap ${assigned > 0 ? 'filled' : 'empty'} ${minMonthly != null && assigned < minMonthly ? 'short' : ''}`}>
-          <InlineAssigned fund={goal} month={month} readOnly={readOnly} onChange={onChange} />
+          <InlineAssigned fund={goal} month={month} readOnly={readOnly} />
         </div>
       </div>
     </div>
   )
 }
 
-/** Months from `fromMonth` (YYYY-MM-01) through `targetDate` (YYYY-MM-DD), floor 1. */
-function monthsBetween(fromMonth, targetDate) {
-  if (!targetDate) return null
-  const [fy, fm] = fromMonth.split('-').map(Number)
-  const [ty, tm] = targetDate.split('-').map(Number)
-  return Math.max(1, (ty - fy) * 12 + (tm - fm) + 1)
-}
-
-function minMonthlyNeeded(balance, target, targetDate, viewMonth) {
-  if (!target || !targetDate) return null
-  const remaining = target - balance
-  if (remaining <= 0) return 0
-  const months = monthsBetween(viewMonth, targetDate)
-  if (months == null) return null
-  return remaining / months
-}
-
-function PlannedIncomeCell({ month, planned, actual, readOnly, onChange }) {
+function PlannedIncomeCell({ month, planned, actual, readOnly }) {
+  const invalidate = useInvalidate()
   const [editing, setEditing] = useState(false)
   const [val, setVal] = useState('')
   const p = planned ?? 0
@@ -400,7 +339,7 @@ function PlannedIncomeCell({ month, planned, actual, readOnly, onChange }) {
     if (!Number.isFinite(n) || n < 0) return
     if (Math.abs(n - p) < 0.005) return
     await api.monthlyMeta.set(month, n)
-    onChange?.()
+    invalidate(writes.plannedIncome)
   }
 
   if (editing) {
@@ -459,13 +398,14 @@ function groupByCategory(funds) {
   })
 }
 
-function CopyPrevMonthButton({ currentMonth, onDone }) {
+function CopyPrevMonthButton({ currentMonth }) {
+  const invalidate = useInvalidate()
   const prev = shiftMonth(currentMonth, -1)
   async function go() {
     if (!confirm(`Copy assignments from ${monthLabel(prev)} into ${monthLabel(currentMonth)}? This makes each fund's assigned amount this month match last month.`)) return
     try {
       const r = await api.bulk.copyAssignments(prev, currentMonth)
-      onDone()
+      invalidate(writes.ledger)
       const parts = [`Updated ${r.funds_updated} fund(s)`]
       if (r.funds_resurrected) parts.push(`resurrected ${r.funds_resurrected}`)
       if (Number(r.income_delta)) parts.push(`income adjusted by ${r.income_delta}`)
@@ -476,6 +416,7 @@ function CopyPrevMonthButton({ currentMonth, onDone }) {
 }
 
 function NewFundModal({ onClose, onCreated, existingCategories }) {
+  const invalidate = useInvalidate()
   const [name, setName] = useState('')
   const [target, setTarget] = useState('')
   const [category, setCategory] = useState('')
@@ -494,6 +435,7 @@ function NewFundModal({ onClose, onCreated, existingCategories }) {
         target: target ? Number(target) : null,
         category: category.trim() || null,
       })
+      invalidate(writes.ledger)
       onCreated()
     } catch (e) { setErr(String(e)); setBusy(false) }
   }

@@ -1,16 +1,28 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useOutletContext } from 'react-router-dom'
-import { api, todayISO, fmt } from '../api'
+import { api } from '../api'
+import { keys, useInvalidate, useResource, writes } from '../resource'
+import ErrorCard from '../components/ErrorCard'
+import { dateInMonth } from '../components/MonthSelector'
 import { Icon } from '../components/Icons'
 
 export default function QuickAdd() {
-  const { refresh } = useOutletContext()
-  const [funds, setFunds] = useState([])
+  const { month } = useOutletContext()
+  const fundsRes = useResource(keys.funds())
+  const invalidate = useInvalidate()
   const [amount, setAmount] = useState('')
   const [merchant, setMerchant] = useState('')
   const [fundId, setFundId] = useState('')
   const [type, setType] = useState('expense')
-  const [date, setDate] = useState(todayISO())
+  // Files the transaction under the month in the top bar, so recording against
+  // an archived month doesn't file it under today. Changing months from behind
+  // the modal re-dates the field: you asked for a different month.
+  const [date, setDate] = useState(() => dateInMonth(month))
+  const [datedFor, setDatedFor] = useState(month)
+  if (month !== datedFor) {
+    setDatedFor(month)
+    setDate(dateInMonth(month))
+  }
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [suggestSrc, setSuggestSrc] = useState('')
@@ -18,9 +30,11 @@ export default function QuickAdd() {
   const amountRef = useRef(null)
   const suggestTimer = useRef(null)
 
+  const funds = fundsRes.data || []
+
   useEffect(() => {
-    api.funds.list().then(setFunds).catch(e => setErr(String(e)))
-    setTimeout(() => amountRef.current?.focus(), 50)
+    const t = setTimeout(() => amountRef.current?.focus(), 50)
+    return () => clearTimeout(t)
   }, [])
 
   useEffect(() => {
@@ -50,7 +64,7 @@ export default function QuickAdd() {
         merchant,
         type,
       })
-      refresh()
+      invalidate(writes.ledger)
       nav('/')
     } catch (e) { setErr(String(e)); setBusy(false) }
   }
@@ -110,6 +124,7 @@ export default function QuickAdd() {
         </div>
 
         {err && <div className="bad small">{err}</div>}
+        {fundsRes.error && <ErrorCard error={fundsRes.error} />}
 
         <div className="actions">
           <button type="button" className="btn ghost" onClick={close}>Cancel</button>

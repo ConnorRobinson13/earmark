@@ -1,44 +1,42 @@
-import { useEffect, useState } from 'react'
-import { useOutletContext } from 'react-router-dom'
+import { useState } from 'react'
 import { api, fmt } from '../api'
+import { keys, useInvalidate, useResource, writes } from '../resource'
+import ErrorCard from '../components/ErrorCard'
+import { relativeTime } from '../format'
 import { Icon } from '../components/Icons'
 import PlaidConnect, { LinkedItems } from '../components/PlaidConnect'
 
 export default function Settings() {
-  const { refresh, refreshTick } = useOutletContext()
-  const [accounts, setAccounts] = useState([])
-  const [funds, setFunds] = useState([])
-  const [err, setErr] = useState('')
+  const accountsRes = useResource(keys.accounts())
+  const fundsRes = useResource(keys.funds())
+  const invalidate = useInvalidate()
   const [showAdd, setShowAdd] = useState(false)
 
-  async function load() {
-    try {
-      const [a, f] = await Promise.all([api.accounts.list(), api.funds.list()])
-      setAccounts(a); setFunds(f)
-    } catch (e) { setErr(String(e)) }
-  }
-  useEffect(() => { load() }, [refreshTick])
+  const accounts = accountsRes.data || []
+  // The fund list only decorates the account cards with the goals they back,
+  // so losing it costs the reconciliation panel, not the page.
+  const funds = fundsRes.data || []
 
   async function updateBalance(id, v) {
     await api.accounts.update(id, { current_balance: Number(v) })
-    load(); refresh()
+    invalidate(writes.balances)
   }
 
   async function updateType(id, type) {
     await api.accounts.update(id, { type })
-    load(); refresh()
+    invalidate(writes.balances)
   }
 
   async function deleteAccount(id, name) {
     if (!confirm(`Delete account "${name}"?`)) return
     await api.accounts.delete(id)
-    load(); refresh()
+    invalidate(writes.balances)
   }
+
+  if (accountsRes.error) return <ErrorCard error={accountsRes.error} />
 
   return (
     <div>
-      {err && <div className="card" style={{ marginBottom: 16 }}><span className="bad">{err}</span></div>}
-
       <div className="sec-head" style={{ marginTop: 0 }}>
         <h2>Accounts</h2>
         <span className="sub">checking, savings, credit</span>
@@ -70,7 +68,7 @@ export default function Settings() {
         <h2>Bank connections</h2>
         <span className="sub">Plaid</span>
       </div>
-      <PlaidSection onChange={() => { load(); refresh() }} />
+      <PlaidSection />
       <div style={{ height: 24 }} />
 
       <div className="sec-head">
@@ -78,11 +76,11 @@ export default function Settings() {
         <span className="sub">irreversible</span>
       </div>
       <div className="card">
-        <ResetSection onReset={() => { load(); refresh() }} />
+        <ResetSection />
       </div>
 
       {showAdd && (
-        <AddAccountModal onClose={() => setShowAdd(false)} onAdded={() => { setShowAdd(false); load(); refresh() }} />
+        <AddAccountModal onClose={() => setShowAdd(false)} onAdded={() => setShowAdd(false)} />
       )}
     </div>
   )
@@ -191,7 +189,7 @@ function FreshnessLine({ acct, onUpdate }) {
   const linked = !!acct.plaid_account_id
   const label = !sync
     ? 'never synced — click balance to set'
-    : `${linked ? 'Plaid sync' : 'manual'} · ${relTime(sync)}`
+    : `${linked ? 'Plaid sync' : 'manual'} · ${relativeTime(sync)}`
 
   return (
     <div className="row" style={{ marginTop: 6, gap: 8 }}>
@@ -206,17 +204,8 @@ function FreshnessLine({ acct, onUpdate }) {
   )
 }
 
-function relTime(d) {
-  const s = Math.floor((Date.now() - d.getTime()) / 1000)
-  if (s < 60) return 'just now'
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`
-  const days = Math.floor(s / 86400)
-  if (days < 14) return `${days}d ago`
-  return `${Math.floor(days / 7)}w ago`
-}
-
 function AddAccountModal({ onClose, onAdded }) {
+  const invalidate = useInvalidate()
   const [name, setName] = useState('')
   const [type, setType] = useState('checking')
   const [balance, setBalance] = useState('')
@@ -235,6 +224,7 @@ function AddAccountModal({ onClose, onAdded }) {
         type,
         current_balance: Number.isFinite(bal) ? bal : 0,
       })
+      invalidate(writes.balances)
       onAdded()
     } catch (e) { setErr(String(e)); setBusy(false) }
   }
@@ -271,32 +261,23 @@ function AddAccountModal({ onClose, onAdded }) {
   )
 }
 
-function PlaidSection({ onChange }) {
-  const [items, setItems] = useState([])
-  const [hasCreds, setHasCreds] = useState(true)
+function PlaidSection() {
+  const { data, error } = useResource(keys.plaidItems())
+  const invalidate = useInvalidate()
   const [status, setStatus] = useState('')
   const [syncing, setSyncing] = useState(false)
 
-  async function loadItems() {
-    try {
-      const its = await api.plaid.items()
-      setItems(its)
-      setHasCreds(true)
-    } catch (e) {
-      // 400 from backend means creds missing
-      if (String(e).includes('Plaid credentials not configured')) setHasCreds(false)
-      setItems([])
-    }
-  }
-  useEffect(() => { loadItems() }, [])
+  const items = data || []
+  // A 400 saying the credentials are missing is a setup step to explain, not a
+  // failure to report — PlaidConnect renders the instructions instead.
+  const hasCreds = !(error?.status === 400 && String(error.detail).includes('Plaid credentials not configured'))
 
   async function sync() {
     setSyncing(true); setStatus('')
     try {
       const r = await api.plaid.sync()
       setStatus(`Added ${r.added} transaction${r.added === 1 ? '' : 's'} to inbox`)
-      await loadItems()
-      onChange()
+      invalidate(writes.plaid)
     } catch (e) { setStatus(String(e)) }
     finally { setSyncing(false) }
   }
@@ -311,7 +292,7 @@ function PlaidSection({ onChange }) {
     ]
     if (!confirm(lines.join('\n'))) return
     await api.plaid.unlinkItem(id)
-    await loadItems(); onChange()
+    invalidate(writes.plaid)
   }
 
   const atCap = items.length >= 10
@@ -319,7 +300,7 @@ function PlaidSection({ onChange }) {
   return (
     <div className="stack">
       <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-        <PlaidConnect hasCreds={hasCreds} onLinked={() => { loadItems(); onChange() }} disabled={atCap} />
+        <PlaidConnect hasCreds={hasCreds} onLinked={() => invalidate(writes.plaid)} disabled={atCap} />
         {items.length > 0 && (
           <button className="btn" onClick={sync} disabled={syncing}>
             <Icon name="sync" /> {syncing ? 'Syncing…' : 'Sync now'}
@@ -336,7 +317,8 @@ function PlaidSection({ onChange }) {
   )
 }
 
-function ResetSection({ onReset }) {
+function ResetSection() {
+  const invalidate = useInvalidate()
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState('')
   async function reset() {
@@ -345,7 +327,8 @@ function ResetSection({ onReset }) {
     try {
       await api.admin.resetToSeed()
       setStatus('Done.')
-      onReset()
+      // The one write that really does make everything on screen stale.
+      invalidate(writes.everything)
     } catch (e) { setStatus(String(e)) }
     finally { setBusy(false) }
   }

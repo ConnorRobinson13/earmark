@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
-import { api, fmt, todayISO } from '../api'
+import { api, fmt } from '../api'
+import { dateInMonth } from './MonthSelector'
+import { useInvalidate, writes } from '../resource'
 
 /**
  * Click-to-edit "assigned this month" for a fund. Renders a single button or
  * a single input, sized to fill its parent grid cell — no internal label
  * (the column header in .col-lbl handles that).
  */
-export default function InlineAssigned({ fund, onChange, month, readOnly }) {
+export default function InlineAssigned({ fund, month, readOnly }) {
+  const invalidate = useInvalidate()
   const [editing, setEditing] = useState(false)
   const [value, setValue] = useState('')
   const [busy, setBusy] = useState(false)
@@ -41,16 +44,14 @@ export default function InlineAssigned({ fund, onChange, month, readOnly }) {
     const delta = +(next - current).toFixed(2)
     setBusy(true)
     try {
-      const today = todayISO()
-      const isCurrent = !month || month === today.slice(0, 7) + '-01'
       await api.transactions.assign({
         fund_id: fund.id,
         amount: delta,
-        date: isCurrent ? today : month,
+        date: dateInMonth(month),
         notes: 'Inline assignment edit',
       })
       setEditing(false)
-      onChange?.()
+      invalidate(writes.ledger)
     } catch (e) {
       setErr(String(e))
       submittedRef.current = false
