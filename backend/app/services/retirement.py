@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from decimal import ROUND_HALF_UP, Decimal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
 
 CENTS = Decimal("0.01")
 
@@ -55,13 +55,15 @@ class ProjectionParams(BaseModel):
     #: Deflates the series into today's dollars. 0 = real equals nominal.
     inflation_pct: Decimal = Field(default=Decimal("0"), gt=-100, le=100)
 
+    @computed_field
     @property
     def years(self) -> int:
         """Whole years left to compound, floored at zero.
 
         Both clients clamped this themselves, because a retirement age already
         behind you would otherwise run the loop backwards. The clamp belongs
-        with the recurrence rather than with each caller.
+        with the recurrence rather than with each caller — and computed rather
+        than stored so it cannot be passed in disagreeing with the two ages.
         """
         return max(0, self.retire_age - self.current_age)
 
@@ -81,21 +83,14 @@ class ProjectionPoint(BaseModel):
     contributed: Decimal  # cumulative contributions up to and including this year
 
 
-class RetirementProjection(BaseModel):
+class RetirementProjection(ProjectionParams):
     """The projection, and the assumptions it was drawn under.
 
     The parameters are echoed back deliberately: this is the endpoint's response
     body, and a client charting it should not have to remember what it asked for
-    to label the chart.
+    to label the chart. Inherited rather than restated so a new dial is one
+    edit — the two lists cannot fall out of step if there is only one list.
     """
-
-    current_age: int
-    retire_age: int
-    years: int
-    annual_return_pct: Decimal
-    monthly_contribution: Decimal
-    contribution_growth_pct: Decimal
-    inflation_pct: Decimal
 
     starting_balance: Decimal
     total_contributed: Decimal
@@ -113,9 +108,9 @@ def project(params: ProjectionParams, starting_balance: Decimal) -> RetirementPr
     is precise enough to justify monthly compounding — the return itself is a
     guess — and a year is the granularity the chart draws anyway.
     """
-    r = params.annual_return_pct / 100
-    g = params.contribution_growth_pct / 100
-    i = params.inflation_pct / 100
+    annual_return = params.annual_return_pct / 100
+    contribution_growth = params.contribution_growth_pct / 100
+    inflation = params.inflation_pct / 100
 
     balance = starting_balance
     annual_contribution = params.monthly_contribution * 12
@@ -135,9 +130,9 @@ def project(params: ProjectionParams, starting_balance: Decimal) -> RetirementPr
         )
     ]
     for year in range(1, params.years + 1):
-        balance = balance * (1 + r) + annual_contribution
+        balance = balance * (1 + annual_return) + annual_contribution
         contributed += annual_contribution
-        deflator *= 1 + i
+        deflator *= 1 + inflation
         series.append(
             ProjectionPoint(
                 year=year,
@@ -147,18 +142,14 @@ def project(params: ProjectionParams, starting_balance: Decimal) -> RetirementPr
                 contributed=_cents(contributed),
             )
         )
-        annual_contribution *= 1 + g  # next year's contribution grows with raises
+        # Next year's contribution grows with raises.
+        annual_contribution *= 1 + contribution_growth
 
     started_with = _cents(starting_balance)
     put_in = _cents(contributed)
     return RetirementProjection(
-        current_age=params.current_age,
-        retire_age=params.retire_age,
-        years=params.years,
-        annual_return_pct=params.annual_return_pct,
-        monthly_contribution=params.monthly_contribution,
-        contribution_growth_pct=params.contribution_growth_pct,
-        inflation_pct=params.inflation_pct,
+        # `years` is computed from the two ages, so it is not passed along here.
+        **params.model_dump(exclude={"years"}),
         starting_balance=started_with,
         total_contributed=put_in,
         # Whatever the balance did not come from: not the money put in, and not

@@ -29,20 +29,24 @@ function saveProjection(p) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(p)) } catch {}
 }
 
+// Long enough that a slider dragged at any human speed asks once, short enough
+// that letting go and reading the answer feels like one motion.
+const SETTLE_MS = 250
+
 /**
- * `value`, but only once it has held still for `ms`.
+ * `value`, but only once it has held still for `SETTLE_MS`.
  *
  * The projection is a server read keyed on every dial it was drawn under, so
  * without this a slider dragged across seventeen positions would ask seventeen
  * questions on its way to the one being asked. The first value is taken as-is:
  * the page has to ask for something on mount.
  */
-function useSettled(value, ms = 250) {
+function useSettled(value) {
   const [settled, setSettled] = useState(value)
   useEffect(() => {
-    const timer = setTimeout(() => setSettled(value), ms)
+    const timer = setTimeout(() => setSettled(value), SETTLE_MS)
     return () => clearTimeout(timer)
-  }, [value, ms])
+  }, [value])
   return settled
 }
 
@@ -53,6 +57,12 @@ function useSettled(value, ms = 250) {
  * load wrote to the database. The write lives behind its own POST now — and
  * nothing was calling it, so the trend simply stopped gaining points. Opening
  * this page still captures the month; it is just asked for out loud.
+ *
+ * The view rather than the daily scheduler, because the two are not equivalent
+ * here: a snapshot is only worth having if someone looks at the chart, and this
+ * is the only page that draws it. Putting it on the scheduler would mean the
+ * backend writing a row a day whether or not anyone ever reads one, and would
+ * leave a first visit to a fresh database with nothing to show until tomorrow.
  *
  * The history is read only once this has settled, which is what puts this
  * month's point on the line the first time it is drawn. A failed capture gets
@@ -89,6 +99,8 @@ export default function NetWorth() {
   const projRes = useResource(keys.retirementProjection(asked))
   // A new key drops the previous answer, so hold the last projection on screen
   // while the next lands rather than blanking the panel every time a dial moves.
+  // A failed read is not covered by that: an error takes precedence below, so a
+  // projection that could not be fetched never shows as the current one.
   const lastProjection = useRef(null)
   if (projRes.data) lastProjection.current = projRes.data
   const projection = projRes.data || lastProjection.current
@@ -284,10 +296,10 @@ export default function NetWorth() {
           </div>
         </div>
 
-        {projection ? (
-          <ProjectionPanel projection={projection} showReal={proj.showRealDollars} />
-        ) : projRes.error ? (
+        {projRes.error ? (
           <ErrorCard error={projRes.error} />
+        ) : projection ? (
+          <ProjectionPanel projection={projection} showReal={proj.showRealDollars} />
         ) : (
           <div className="plan-sticky muted">Loading…</div>
         )}

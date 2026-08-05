@@ -1,5 +1,7 @@
+import { existsSync, readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { renderApp, fund, emptyDashboard, shellRoutes, SHELL_KEYS } from '../test/renderApp'
 import { ApiError, keys } from '../resource'
 import { api } from '../api'
@@ -51,14 +53,17 @@ const SHARED_PARAMS = {
   inflation_pct: 2.5,
 }
 
-const PROJECTION_KEY = keys.retirementProjection({
+/** The dials the view starts on, before anything is saved to localStorage. */
+const DEFAULT_DIALS = {
   currentAge: 28,
   retireAge: 65,
   annualReturnPct: 8,
   monthlyContribution: 583,
   contributionGrowthPct: 3,
   inflationPct: 2.5,
-})
+}
+
+const PROJECTION_KEY = keys.retirementProjection(DEFAULT_DIALS)
 
 /**
  * A projection as the backend serialises it. Its starting balance is
@@ -97,7 +102,10 @@ function routes(overrides = {}) {
 
 describe('NetWorth', () => {
   // Opening the page captures a snapshot, so every test here makes that write.
+  // The dials persist to localStorage, so a test that moves one would hand the
+  // next test a different projection key if it were not cleared between them.
   beforeEach(() => {
+    localStorage.clear()
     vi.spyOn(api, 'networthSnapshot').mockResolvedValue({})
   })
   afterEach(() => {
@@ -126,27 +134,33 @@ describe('NetWorth', () => {
     // writes nothing — and it has to happen first, or the line comes back a
     // point short of the total in the hero above it.
     let capturedYet = false
-    let capturedWhenHistoryAsked = null
     vi.spyOn(api, 'networthSnapshot').mockImplementation(async () => {
       capturedYet = true
       return {}
     })
-    const { adapter } = renderApp(routes({
-      [keys.networthHistory()]: () => {
-        if (capturedWhenHistoryAsked === null) capturedWhenHistoryAsked = capturedYet
-        return HISTORY
-      },
+    // A database whose history only holds this month's point once it has been
+    // captured — so reading too early draws the empty state, not the line.
+    renderApp(routes({
+      [keys.networthHistory()]: () => (capturedYet ? HISTORY : []),
     }), { route: '/networth' })
 
-    await waitFor(() => expect(adapter.requested).toContain(keys.networthHistory()))
-    expect(capturedWhenHistoryAsked).toBe(true)
+    expect(await screen.findByText(/since Jun 26/)).toBeTruthy()
+    expect(screen.queryByText(/Tracking starts now/)).toBe(null)
   })
 
-  it('captures once per visit, so a month gets one point and not two', async () => {
-    renderApp(routes(), { route: '/networth' })
-
+  it('captures again on a second visit rather than skipping it', async () => {
+    // Idempotency is the endpoint's job — capturing twice in a month replaces
+    // that month's row, which `backend/tests/test_networth_api.py` pins — so
+    // the caller's job is simply to ask every time the page is opened, and a
+    // month spanning several visits still ends up with one point.
+    const { unmount } = renderApp(routes(), { route: '/networth' })
     await screen.findByText(/since Jun 26/)
-    expect(api.networthSnapshot).toHaveBeenCalledTimes(1)
+    unmount()
+
+    renderApp(routes(), { route: '/networth' })
+    await screen.findByText(/since Jun 26/)
+
+    expect(api.networthSnapshot).toHaveBeenCalledTimes(2)
   })
 
   it('still draws the trend when the capture fails', async () => {
@@ -219,6 +233,39 @@ describe('NetWorth', () => {
     expect(screen.getByText('$458,000.00')).toBeTruthy()
     expect(screen.getByText('$492,000.00')).toBeTruthy()
     expect(screen.getByText(/in 37 years at 8% return, contributions growing 3%\/yr/)).toBeTruthy()
+  })
+
+  it('asks once for a slider dragged across several positions', async () => {
+    // Every dial is in the key, so an undebounced drag would ask the backend
+    // for each value it passed through on the way to the one being asked.
+    const { adapter } = renderApp(routes({
+      [keys.retirementProjection({ ...DEFAULT_DIALS, currentAge: 31 })]: PROJECTION,
+    }), { route: '/networth' })
+    await screen.findByText(/≈ \$1,000,000\.00 nominal/)
+
+    const currentAge = document.querySelectorAll('.proj-slider')[0]
+    for (const age of [29, 30, 31]) {
+      fireEvent.change(currentAge, { target: { value: String(age) } })
+    }
+
+    const projections = () => adapter.requested.filter(k => k.startsWith('/retirement/projection'))
+    await waitFor(() => expect(projections()).toHaveLength(2))
+    expect(projections()[1]).toContain('current_age=31')
+    // Give the ones that were skipped a chance to show up late.
+    await waitFor(() => expect(projections()).toHaveLength(2))
+  })
+
+  it('asks the same question the MCP tool asks', () => {
+    // The MCP tool pins this same set from its side, in
+    // `mcp/tests/test_server.py`, against the same backend test file. Nothing
+    // else would notice if one client quietly started asking something else.
+    const backendTest = resolve(__dirname, '../../../backend/tests/test_retirement_api.py')
+    if (!existsSync(backendTest)) return // the backend is not in this checkout
+    const source = readFileSync(backendTest, 'utf8')
+
+    for (const [name, value] of Object.entries(SHARED_PARAMS)) {
+      expect(source).toContain(`"${name}": ${value},`)
+    }
   })
 
   it('says so when the projection is the only read that failed', async () => {

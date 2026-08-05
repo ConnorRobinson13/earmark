@@ -229,18 +229,23 @@ def project_retirement(
 ) -> dict:
     """Project investment net worth at retirement. Compounds the CURRENT
     investment-account total plus monthly contributions at the given annual
-    return. Returns the final value and a year-by-year series for charting.
+    return, one year at a time.
 
     The backend works this out — the same endpoint the net-worth page reads, so
     a question asked here and the same question asked on the page come back with
     the same number. This tool used to compound the series itself, and its copy
     escalated nothing and ignored inflation, so the two answers disagreed.
 
+    Returns `starting_balance`, `total_contributed`, `compounded_growth`,
+    `final_nominal`, `final_real`, and a `series` of one point per year. Every
+    amount comes back twice over: `nominal` is future dollars, `real` is the
+    same money in today's, and the two are equal when inflation_pct is 0.
+
     annual_return_pct: nominal return on the whole balance, compounded yearly.
     monthly_contribution: what goes in each month of the FIRST year.
     contribution_growth_pct: how much that grows each year — raises. 0 = flat.
-    inflation_pct: 0 = report future dollars only. Above 0 and every point also
-    carries `real`, the same money in today's dollars; `nominal` is unaffected.
+    inflation_pct: what the deflation to today's dollars assumes. 0 = no
+    deflation, which makes every `real` equal to its `nominal`.
     """
     return _get("/retirement/projection", {
         "current_age": current_age,
