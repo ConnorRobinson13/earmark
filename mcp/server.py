@@ -122,6 +122,28 @@ def _month_first(raw: str) -> date:
     return named.replace(day=1)
 
 
+# The two fund kinds, copied rather than imported — `FundKind` lives in
+# `backend/app/models.py` and this container has no path to it. Copied the same
+# way the month message above is, and held to the original by the same kind of
+# test, so a kind added there can't be missing here in silence.
+OPERATIONAL_KIND = "operational"
+GOAL_KIND = "goal"
+
+
+# `list_funds` and `list_goals` are one fund list cut two ways, and each used to
+# spell its own cut out. Both cuts below ask what a fund is rather than what it
+# is not, so a kind neither knows is listed by neither tool — the model gets a
+# short list it can query about, not a fund filed under a heading that is wrong.
+def _operational(funds: list[dict]) -> list[dict]:
+    """The monthly spending buckets in a fund list."""
+    return [f for f in funds if f["kind"] == OPERATIONAL_KIND]
+
+
+def _goals(funds: list[dict]) -> list[dict]:
+    """The long-term buckets in a fund list — savings, debts, contribution caps."""
+    return [f for f in funds if f["kind"] == GOAL_KIND]
+
+
 # ─────────────────────────── READ TOOLS ───────────────────────────
 
 @mcp.tool()
@@ -142,7 +164,7 @@ def list_funds(month: str = "") -> list:
     figures are scoped to that month.
     """
     data = _get("/dashboard", {"month": month} if month else None)
-    return [f for f in data["funds"] if f["kind"] == "operational"]
+    return _operational(data["funds"])
 
 
 @mcp.tool()
@@ -155,8 +177,7 @@ def list_goals() -> list:
     in. For an earlier month's goal figures use `financial_overview(month)`,
     which reports every fund.
     """
-    funds = _get("/funds")
-    return [f for f in funds if f["kind"] == "goal"]
+    return _goals(_get("/funds"))
 
 
 @mcp.tool()

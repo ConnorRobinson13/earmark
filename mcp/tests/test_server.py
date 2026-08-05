@@ -16,6 +16,7 @@ import pytest
 import server
 
 BACKEND_MONTH = Path(__file__).resolve().parents[2] / "backend" / "app" / "month.py"
+BACKEND_MODELS = Path(__file__).resolve().parents[2] / "backend" / "app" / "models.py"
 
 # A month that will never be the current one, so the "some other month" branch
 # stays that branch as time passes.
@@ -303,6 +304,55 @@ def test_the_projection_reads_no_other_endpoint(api):
     server.project_retirement(current_age=30, retire_age=65)
 
     assert [r.url.path for r in api.requests] == ["/retirement/projection"]
+
+
+# ─────────────────────── operational funds vs goals ───────────────────────
+
+# One fund list, cut two ways by the two tools below.
+BOTH_KINDS = [
+    {"id": 1, "name": "Groceries", "kind": "operational"},
+    {"id": 2, "name": "Emergency fund", "kind": "goal"},
+    {"id": 3, "name": "Rent", "kind": "operational"},
+]
+
+
+def test_list_funds_reports_the_operational_half(api):
+    api.replies(200, {"funds": BOTH_KINDS})
+
+    assert server.list_funds() == [BOTH_KINDS[0], BOTH_KINDS[2]]
+
+
+def test_list_goals_reports_the_goal_half(api):
+    api.replies(200, BOTH_KINDS)
+
+    assert server.list_goals() == [BOTH_KINDS[1]]
+
+
+def test_a_kind_neither_tool_knows_is_listed_by_neither(api):
+    """Both cuts ask what a fund is, not what it is not — so an unrecognised
+    kind falls out of both lists rather than into whichever one was written as
+    "not the other", where the model would read it under a heading that is wrong
+    and nothing would error. Nothing is broken here today; this pins which of
+    the two spellings stays."""
+    unknown = {"id": 4, "name": "Sinking fund", "kind": "sinking"}
+
+    api.replies(200, {"funds": [*BOTH_KINDS, unknown]})
+    assert unknown not in server.list_funds()
+
+    api.replies(200, [*BOTH_KINDS, unknown])
+    assert unknown not in server.list_goals()
+
+
+def test_the_fund_kinds_are_the_backend_s_word_for_word():
+    """`OPERATIONAL_KIND`/`GOAL_KIND` are copied, not imported — this container
+    has no backend on its path — so the copies are held to `FundKind`, the same
+    way the bad-month message is held to the backend's."""
+    if not BACKEND_MODELS.exists():  # running from the container, where it isn't
+        pytest.skip(f"{BACKEND_MODELS} is not in this checkout")
+
+    source = BACKEND_MODELS.read_text()
+    assert f'operational = "{server.OPERATIONAL_KIND}"' in source
+    assert f'goal = "{server.GOAL_KIND}"' in source
 
 
 # ────────────────────────────── docstrings don't lie ──────────────────────────────

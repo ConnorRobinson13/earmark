@@ -4,6 +4,7 @@ import { api, fmt } from '../api'
 import { keys, useInvalidate, useResource, writes } from '../resource'
 import ErrorCard from '../components/ErrorCard'
 import { monthShortYear } from '../format'
+import { isOperational } from '../funds'
 
 const STORAGE_KEY = 'budget-app:networth-projection'
 
@@ -121,7 +122,7 @@ export default function NetWorth() {
         // The car loan is a debt you can't walk away from in an emergency, so
         // count it even though it's modeled as a goal, not an operational fund.
         const carPayment = /car loan|car payment/i.test(f.name)
-        if (f.kind !== 'operational' && !carPayment) return false
+        if (!isOperational(f) && !carPayment) return false
         const scheduledBill = (f.category === 'Housing' || f.due_day !== 1) && f.category !== 'Subscriptions'
         const groceries = /grocer/i.test(f.name)
         return scheduledBill || groceries || carPayment

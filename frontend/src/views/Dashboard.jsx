@@ -7,6 +7,7 @@ import GoalSummary, { goalProgress } from '../components/GoalSummary'
 import InlineAssigned from '../components/InlineAssigned'
 import { thisMonth, shiftMonth } from '../components/MonthSelector'
 import { monthLabel, monthShort } from '../format'
+import { isGoal, isOperational } from '../funds'
 import { Icon } from '../components/Icons'
 import ToMovePanel from '../components/ToMovePanel'
 
@@ -29,8 +30,8 @@ export default function Dashboard() {
   if (dashboardRes.error) return <ErrorCard error={dashboardRes.error} />
   if (!data) return <div className="muted">Loading…</div>
 
-  const ops = data.funds.filter(f => f.kind === 'operational')
-  const goals = data.funds.filter(f => f.kind === 'goal')
+  const ops = data.funds.filter(isOperational)
+  const goals = data.funds.filter(isGoal)
 
   const u = data.unassigned
   const uTone = Math.abs(u) < 0.01 ? 'good' : u > 0 ? 'warn' : 'bad'

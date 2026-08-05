@@ -5,6 +5,7 @@ import { keys, useInvalidate, useResource, writes } from '../resource'
 import ErrorCard from '../components/ErrorCard'
 import GoalSummary, { goalProgress } from '../components/GoalSummary'
 import { dateInMonth, thisMonth } from '../components/MonthSelector'
+import { isGoal } from '../funds'
 import { Icon } from '../components/Icons'
 
 export default function Goals() {
@@ -20,7 +21,7 @@ export default function Goals() {
   if (!dashRes.data) return <div className="muted">Loading…</div>
 
   const isPast = month < thisMonth()
-  const goals = dashRes.data.funds.filter(f => f.kind === 'goal')
+  const goals = dashRes.data.funds.filter(isGoal)
   const unassigned = dashRes.data.unassigned
   // A failed accounts read costs the backing-account picker, not the page.
   const accounts = accountsRes.data || []
