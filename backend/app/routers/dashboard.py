@@ -17,7 +17,7 @@ from ..month import (
 )
 from ..services.balances import (
     all_funds_total,
-    enrich_fund,
+    enrich_funds,
     goals_saved_in_month,
     gross_spent_in_month,
     liquid_cash,
@@ -80,7 +80,7 @@ def dashboard(
             (Fund.effective_to_month.is_(None)) | (Fund.effective_to_month >= month_first),
         ).order_by(Fund.sort_order, Fund.id)
     ).all()
-    enriched = [enrich_fund(db, f, month=month_first) for f in funds]
+    enriched = enrich_funds(db, funds, month=month_first)
     spent = gross_spent_in_month(db, month_first)
     liquid_d = Decimal(liquid or 0)
     credit_d = Decimal(credit_owed or 0)
