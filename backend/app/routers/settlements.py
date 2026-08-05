@@ -54,11 +54,10 @@ def list_pending(month: str | None = None, db: Session = Depends(get_db)):
 
     # Which goals the month shows is the shared question, so it gets the shared
     # answer: a goal ended from an earlier month, or created after this one, is
-    # no more settleable here than it is visible on the dashboard. Kind is the
-    # only thing this caller narrows by, and it narrows in Python rather than
-    # through a `kind=` argument on the predicate: the month's funds are a short
-    # list already loaded, and one filter here beats a second query shape that
-    # every other caller would have to ignore.
+    # no more settleable here than it is visible on the dashboard. Kind is all
+    # this caller narrows by, and it narrows the loaded list rather than the
+    # query — a month's funds are few, and a `kind=` argument on the predicate
+    # would be one every other caller passes nothing to.
     goals = [f for f in active_funds_in_month(db, month_date) if f.kind == FundKind.goal]
 
     items: list[ToMoveItem] = []
