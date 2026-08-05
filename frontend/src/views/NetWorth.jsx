@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
-import { fmt } from '../api'
-import { keys, useResource } from '../resource'
+import { api, fmt } from '../api'
+import { keys, useInvalidate, useResource, writes } from '../resource'
 import ErrorCard from '../components/ErrorCard'
 import { monthShortYear } from '../format'
 
@@ -29,11 +29,69 @@ function saveProjection(p) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(p)) } catch {}
 }
 
+/**
+ * `value`, but only once it has held still for `ms`.
+ *
+ * The projection is a server read keyed on every dial it was drawn under, so
+ * without this a slider dragged across seventeen positions would ask seventeen
+ * questions on its way to the one being asked. The first value is taken as-is:
+ * the page has to ask for something on mount.
+ */
+function useSettled(value, ms = 250) {
+  const [settled, setSettled] = useState(value)
+  useEffect(() => {
+    const timer = setTimeout(() => setSettled(value), ms)
+    return () => clearTimeout(timer)
+  }, [value, ms])
+  return settled
+}
+
+/**
+ * Record this month's net worth on open; report when that attempt has finished.
+ *
+ * Reading `/networth` used to upsert a snapshot on the way past, so every page
+ * load wrote to the database. The write lives behind its own POST now — and
+ * nothing was calling it, so the trend simply stopped gaining points. Opening
+ * this page still captures the month; it is just asked for out loud.
+ *
+ * The history is read only once this has settled, which is what puts this
+ * month's point on the line the first time it is drawn. A failed capture gets
+ * no message: whatever history already exists is still worth showing.
+ */
+function useCapturedSnapshot() {
+  const invalidate = useInvalidate()
+  const [captured, setCaptured] = useState(false)
+  useEffect(() => {
+    let alive = true
+    // Capturing twice in one month replaces that month's row rather than adding
+    // a second, so a remount — or StrictMode running this effect twice in dev —
+    // cannot put two points on the chart for the same month.
+    api.networthSnapshot()
+      .then(() => invalidate(writes.snapshot))
+      .catch(() => {})
+      .finally(() => { if (alive) setCaptured(true) })
+    return () => { alive = false }
+  }, [invalidate])
+  return captured
+}
+
 export default function NetWorth() {
   const { month } = useOutletContext()
   const netWorthRes = useResource(keys.networth())
   const dashRes = useResource(keys.dashboard(month))
   const [proj, setProj] = useState(loadProjection)
+  const captured = useCapturedSnapshot()
+
+  // The dials the projection is *asked* under, which lag the dials on screen by
+  // a beat: each one is part of the key, so without this a slider dragged from
+  // 28 to 45 would ask the backend seventeen questions on the way.
+  const asked = useSettled(proj)
+  const projRes = useResource(keys.retirementProjection(asked))
+  // A new key drops the previous answer, so hold the last projection on screen
+  // while the next lands rather than blanking the panel every time a dial moves.
+  const lastProjection = useRef(null)
+  if (projRes.data) lastProjection.current = projRes.data
+  const projection = projRes.data || lastProjection.current
 
   const data = netWorthRes.data
   // The runway is a nice-to-have on top of the position: a failed dashboard
@@ -130,7 +188,7 @@ export default function NetWorth() {
         <span className="sub">monthly snapshots</span>
       </div>
       <div className="card">
-        <NetWorthOverTime />
+        {captured ? <NetWorthOverTime /> : <div className="muted small">Loading…</div>}
       </div>
 
       {/* Emergency-fund runway */}
@@ -226,17 +284,13 @@ export default function NetWorth() {
           </div>
         </div>
 
-        <ProjectionPanel
-          startBalance={investment}
-          monthly={proj.monthlyContribution}
-          rPct={proj.annualReturnPct}
-          gPct={proj.contributionGrowthPct}
-          years={Math.max(0, proj.retireAge - proj.currentAge)}
-          retireAge={proj.retireAge}
-          currentAge={proj.currentAge}
-          showReal={proj.showRealDollars}
-          inflationPct={proj.inflationPct}
-        />
+        {projection ? (
+          <ProjectionPanel projection={projection} showReal={proj.showRealDollars} />
+        ) : projRes.error ? (
+          <ErrorCard error={projRes.error} />
+        ) : (
+          <div className="plan-sticky muted">Loading…</div>
+        )}
       </div>
     </div>
   )
@@ -279,14 +333,14 @@ function ProjToggle({ label, checked, onChange }) {
 }
 
 /**
- * Rendered below the net-worth read's own guard, and only once it has landed —
- * reading `/networth` is what writes this month's snapshot, so asking for the
- * history before then would leave the latest point out of the line.
+ * Mounted only once this month's snapshot has been captured, so the history it
+ * reads already includes today's point. Asking first would draw a line one
+ * point short of the number in the hero above it.
  *
- * That ordering holds on mount, which is the only path that matters here: this
- * page has no writes of its own. A write made elsewhere invalidates the
- * `/networth` prefix, which reaches both keys at once and races — leaving the
- * last point one edit behind until the page is opened again.
+ * That ordering holds on mount, which is the path that matters: the capture is
+ * this page's only write. A write made elsewhere invalidates the `/networth`
+ * prefix, which reaches this key too — the line refreshes, without a new
+ * snapshot being taken for it.
  */
 function NetWorthOverTime() {
   const { data } = useResource(keys.networthHistory())
@@ -294,7 +348,7 @@ function NetWorthOverTime() {
   if (history.length < 2) {
     return (
       <div className="muted small">
-        Tracking starts now — a snapshot is saved each month you open this page.
+        Tracking starts now — opening this page records one point per month.
         Come back next month to see the trend line.
       </div>
     )
@@ -340,46 +394,38 @@ function NetWorthTrend({ history }) {
   )
 }
 
-function projectSeries(startBalance, monthly, rPct, years, gPct) {
-  // Year-by-year compound with monthly contributions, compounded annually for
-  // simplicity (close enough at this granularity). Contributions escalate by
-  // gPct each year to mirror raises — year 1 uses the base monthly amount.
-  const r = rPct / 100
-  const g = gPct / 100
-  const points = []
-  let bal = startBalance
-  let annualContrib = monthly * 12
-  let contribCumulative = 0
-  points.push({ year: 0, value: bal, contribCumulative: 0 })
-  for (let y = 1; y <= years; y++) {
-    bal = bal * (1 + r) + annualContrib
-    contribCumulative += annualContrib
-    points.push({ year: y, value: bal, contribCumulative })
-    annualContrib *= (1 + g) // next year's contribution grows with raises
-  }
-  return points
-}
-
-function ProjectionPanel({ startBalance, monthly, rPct, gPct, years, retireAge, currentAge, showReal, inflationPct }) {
-  const series = useMemo(
-    () => projectSeries(startBalance, monthly, rPct, years, gPct),
-    [startBalance, monthly, rPct, years, gPct]
-  )
-  // Deflate a future nominal value at `year` into today's dollars.
-  const deflate = (v, year) => v / Math.pow(1 + inflationPct / 100, year)
+/**
+ * The projection, as the backend drew it.
+ *
+ * This used to compound its own series here, and the MCP tool compounded a
+ * different one — same question, two answers. Nothing is worked out in this
+ * component now beyond which of the two currencies to show: the response
+ * carries every point in both nominal and today's dollars, so the toggle above
+ * costs no round trip.
+ */
+function ProjectionPanel({ projection, showReal }) {
+  const {
+    years,
+    current_age: currentAge,
+    retire_age: retireAge,
+    annual_return_pct: rPct,
+    contribution_growth_pct: gPct,
+    inflation_pct: inflationPct,
+    starting_balance: startBalance,
+    total_contributed: totalContrib,
+    compounded_growth: growth,
+    final_nominal: finalNominal,
+    final_real: finalReal,
+    series,
+  } = projection
 
   const displaySeries = useMemo(
-    () => series.map(p => ({ year: p.year, value: showReal ? deflate(p.value, p.year) : p.value })),
-    [series, showReal, inflationPct]
+    () => series.map(p => ({ year: p.year, value: showReal ? p.real : p.nominal })),
+    [series, showReal]
   )
 
-  const finalNominal = series[series.length - 1]?.value ?? startBalance
-  const finalReal = deflate(finalNominal, years)
   const headline = showReal ? finalReal : finalNominal
   const counterpart = showReal ? finalNominal : finalReal
-
-  const totalContrib = series[series.length - 1]?.contribCumulative ?? 0
-  const growth = finalNominal - startBalance - totalContrib
 
   return (
     <div className="plan-sticky">

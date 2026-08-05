@@ -216,6 +216,73 @@ def test_supplied_filters_are_forwarded_as_given(api):
     }
 
 
+# ───────────────────── the retirement projection is the backend's ─────────────────
+
+#: The exact parameters this tool sends for one shared set of assumptions.
+#: `frontend/src/views/NetWorth.test.jsx` pins the same set from the web app's
+#: side and `backend/tests/test_retirement_api.py` pins what the backend makes
+#: of it — between them, the two clients get the same answer to the same
+#: question, which is the whole reason the recurrence moved to the backend.
+SHARED_PARAMS = {
+    "current_age": 28,
+    "retire_age": 65,
+    "annual_return_pct": 8,
+    "monthly_contribution": 583,
+    "contribution_growth_pct": 3,
+    "inflation_pct": 2.5,
+}
+
+
+def test_the_projection_is_asked_for_rather_than_worked_out(api):
+    """The tool compounded its own series, and its copy of the recurrence had
+    drifted from the web app's — no escalation, no inflation. Now there is one
+    copy, behind one endpoint, and this tool forwards to it."""
+    server.project_retirement(**SHARED_PARAMS)
+
+    assert api.request.url.path == "/retirement/projection"
+    assert {k: float(v) for k, v in api.params.items()} == {
+        k: float(v) for k, v in SHARED_PARAMS.items()
+    }
+
+
+def test_the_projection_comes_back_untouched(api):
+    """Reshaping the body here would be the same mistake in a smaller place:
+    the model would read numbers the page never shows."""
+    body = {
+        "years": 1,
+        "starting_balance": "42000.00",
+        "final_nominal": "46943.00",
+        "final_real": "45798.05",
+        "series": [{"year": 0, "age": 28, "nominal": "42000.00", "real": "42000.00", "contributed": "0.00"}],
+    }
+    api.replies(200, body)
+
+    assert server.project_retirement(current_age=28, retire_age=29) == body
+
+
+def test_the_projection_defaults_still_reach_the_backend(api):
+    """Every dial is sent, defaults included, so the backend's answer depends on
+    nothing this container decided to leave out."""
+    server.project_retirement(current_age=30, retire_age=65)
+
+    assert dict(api.params) == {
+        "current_age": "30",
+        "retire_age": "65",
+        "annual_return_pct": "8.0",
+        "monthly_contribution": "0.0",
+        "contribution_growth_pct": "0.0",
+        "inflation_pct": "0.0",
+    }
+
+
+def test_the_projection_reads_no_other_endpoint(api):
+    """It used to fetch /networth for the starting balance and compound from
+    there. The starting balance is the endpoint's business now."""
+    server.project_retirement(current_age=30, retire_age=65)
+
+    assert [r.url.path for r in api.requests] == ["/retirement/projection"]
+
+
 # ────────────────────────────── docstrings don't lie ──────────────────────────────
 
 def test_the_search_docstring_does_not_promise_signed_amount_filtering():

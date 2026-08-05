@@ -224,31 +224,32 @@ def project_retirement(
     retire_age: int,
     annual_return_pct: float = 8.0,
     monthly_contribution: float = 0.0,
+    contribution_growth_pct: float = 0.0,
+    inflation_pct: float = 0.0,
 ) -> dict:
     """Project investment net worth at retirement. Compounds the CURRENT
     investment-account total plus monthly contributions at the given annual
     return. Returns the final value and a year-by-year series for charting.
+
+    The backend works this out — the same endpoint the net-worth page reads, so
+    a question asked here and the same question asked on the page come back with
+    the same number. This tool used to compound the series itself, and its copy
+    escalated nothing and ignored inflation, so the two answers disagreed.
+
+    annual_return_pct: nominal return on the whole balance, compounded yearly.
+    monthly_contribution: what goes in each month of the FIRST year.
+    contribution_growth_pct: how much that grows each year — raises. 0 = flat.
+    inflation_pct: 0 = report future dollars only. Above 0 and every point also
+    carries `real`, the same money in today's dollars; `nominal` is unaffected.
     """
-    nw = _get("/networth")
-    start = float(nw["investment"])
-    years = max(0, retire_age - current_age)
-    r = annual_return_pct / 100.0
-    series = [{"age": current_age, "year": 0, "value": round(start, 2)}]
-    bal = start
-    for y in range(1, years + 1):
-        bal = bal * (1 + r) + monthly_contribution * 12
-        series.append({"age": current_age + y, "year": y, "value": round(bal, 2)})
-    total_contrib = monthly_contribution * 12 * years
-    return {
-        "starting_investment": round(start, 2),
-        "years": years,
+    return _get("/retirement/projection", {
+        "current_age": current_age,
+        "retire_age": retire_age,
         "annual_return_pct": annual_return_pct,
         "monthly_contribution": monthly_contribution,
-        "total_contributed": round(total_contrib, 2),
-        "compounded_growth": round(bal - start - total_contrib, 2),
-        "final_value": round(bal, 2),
-        "series": series,
-    }
+        "contribution_growth_pct": contribution_growth_pct,
+        "inflation_pct": inflation_pct,
+    })
 
 
 # ─────────────────────────── WRITE TOOLS ───────────────────────────
