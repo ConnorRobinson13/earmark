@@ -3,6 +3,7 @@ import { api, fmt } from '../api'
 import { keys, useInvalidate, useResource, writes } from '../resource'
 import ErrorCard from '../components/ErrorCard'
 import { Icon } from '../components/Icons'
+import { isGoal } from '../funds'
 
 export default function FundDetail() {
   const { id } = useParams()
@@ -52,8 +53,8 @@ export default function FundDetail() {
             <div className="val">{fmt(spent)}</div>
           </div>
           <div className="stat">
-            <div className="lbl">{fund.kind === 'goal' ? 'Target' : 'Available'}</div>
-            <div className="val">{fmt(fund.kind === 'goal' ? (fund.target ?? 0) : available)}</div>
+            <div className="lbl">{isGoal(fund) ? 'Target' : 'Available'}</div>
+            <div className="val">{fmt(isGoal(fund) ? (fund.target ?? 0) : available)}</div>
           </div>
         </div>
 

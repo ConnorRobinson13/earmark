@@ -3,6 +3,7 @@ import { api, fmt } from '../api'
 import { keys, useInvalidate, useResource, writes } from '../resource'
 import ErrorCard from '../components/ErrorCard'
 import { relativeTime } from '../format'
+import { isGoal } from '../funds'
 import { Icon } from '../components/Icons'
 import PlaidConnect, { LinkedItems } from '../components/PlaidConnect'
 
@@ -51,7 +52,7 @@ export default function Settings() {
       <div className="acct-grid">
         {accounts.map(a => {
           const tracked = funds
-            .filter(f => f.backed_by_account_id === a.id && f.kind === 'goal')
+            .filter(f => f.backed_by_account_id === a.id && isGoal(f))
             .map(f => ({
               id: f.id, name: f.name,
               amount: Number(f.balance),
