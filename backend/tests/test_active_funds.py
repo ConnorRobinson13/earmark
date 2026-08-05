@@ -1,10 +1,10 @@
 """Which funds are active in a month — the one definition, and its callers.
 
-`active_funds_in_month` is the predicate; the dashboard, the bulk copy and the
-cash-flow projector all read the month's funds through it. The tests below fix
-the rule itself, then check each caller against the same fixture, so a caller
-that grows its own inlined copy again disagrees with a test rather than with
-the other callers.
+`active_funds_in_month` is the predicate; the dashboard, the bulk copy, the
+cash-flow projector and the pending-settlements list all read the month's funds
+through it. The tests below fix the rule itself, then check each caller against
+the same fixture, so a caller that grows its own inlined copy again disagrees
+with a test rather than with the other callers.
 
 The archived clause is the one that used to differ. Bulk copy read `archived_at`
 as a timestamp a month could sit before — a fund archived after the source
@@ -39,9 +39,9 @@ def db(clean_db):
         session.rollback()
 
 
-def _fund(db, name: str, **kwargs) -> Fund:
+def _fund(db, name: str, kind: FundKind = FundKind.operational, **kwargs) -> Fund:
     kwargs.setdefault("created_at", LONG_AGO)
-    f = Fund(name=name, kind=FundKind.operational, **kwargs)
+    f = Fund(name=name, kind=kind, **kwargs)
     db.add(f)
     db.flush()
     return f
@@ -166,6 +166,71 @@ def test_bulk_copy_copies_the_active_funds(client, db, mixed_funds):
     assert body["funds_updated"] == len(ACTIVE_FUNDS)
     assert Decimal(body["total_moved"]) == Decimal("200.00")
     assert [f["name"] for f in client.get("/dashboard", params={"month": "2026-04"}).json()["funds"]] == ACTIVE_FUNDS
+
+
+@pytest.fixture()
+def mixed_goals(db) -> dict[str, Fund]:
+    """`mixed_funds` again, as goals, each owed money in March.
+
+    Pending settlements only ever lists goals, so it needs the fixture in that
+    kind — and it only lists goals with something still to move, so every goal
+    here is assigned in March. What the predicate says about them is unchanged,
+    which is the point: the names below are the same, so `ACTIVE_FUNDS` is the
+    answer for this caller too.
+    """
+    made = {
+        "visible": _fund(db, "Groceries", FundKind.goal),
+        "new": _fund(db, "Mid-March", FundKind.goal, created_at=datetime(2026, 3, 15, tzinfo=timezone.utc)),
+        "later": _fund(db, "Archived in May", FundKind.goal, archived_at=datetime(2026, 5, 1, tzinfo=timezone.utc)),
+        "archived": _fund(db, "Archived in March", FundKind.goal, archived_at=datetime(2026, 3, 15, tzinfo=timezone.utc)),
+        "ended": _fund(db, "Ended in February", FundKind.goal, effective_to_month=date(2026, 2, 28)),
+    }
+    for fund in made.values():
+        db.add(
+            Transaction(
+                fund_id=fund.id,
+                type=TxType.assignment,
+                amount=Decimal("100.00"),
+                date=date(2026, 3, 10),
+            )
+        )
+    db.commit()
+    return made
+
+
+def test_pending_settlements_lists_the_active_goals(client, mixed_goals):
+    """The To-Move panel reads the same set.
+
+    It used to filter on `archived_at` alone, so "Ended in February" — a goal
+    deleted from February forward — was still asking to be settled in March.
+    """
+    body = client.get("/settlements/pending", params={"month": "2026-03"}).json()
+    assert [p["goal_name"] for p in body] == ACTIVE_FUNDS
+
+
+def test_pending_settlements_drops_a_goal_created_after_the_month(client, db):
+    """The clause the old filter also ignored, seen from the other end: a goal
+    assigned in April has nothing pending in March, because in March it did not
+    exist."""
+    goal = _fund(db, "April Goal", FundKind.goal, created_at=datetime(2026, 4, 2, tzinfo=timezone.utc))
+    for when in (date(2026, 3, 10), date(2026, 4, 10)):
+        db.add(
+            Transaction(
+                fund_id=goal.id,
+                type=TxType.assignment,
+                amount=Decimal("100.00"),
+                date=when,
+            )
+        )
+    db.commit()
+
+    assert client.get("/settlements/pending", params={"month": "2026-03"}).json() == []
+    # April, where the goal does exist, still lists it — March's absence is the
+    # predicate talking, not a goal with nothing pending.
+    assert [
+        p["goal_name"]
+        for p in client.get("/settlements/pending", params={"month": "2026-04"}).json()
+    ] == ["April Goal"]
 
 
 def test_bulk_copy_no_longer_resurrects_an_archived_fund(client, db, mixed_funds):
