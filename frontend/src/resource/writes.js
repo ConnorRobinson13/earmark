@@ -23,7 +23,9 @@ const LEDGER = ['/dashboard', '/funds', '/transactions', '/settlements']
 // A write that moves a real account balance. Editing an account balance
 // re-syncs the goals backed by it, and settling moves money between two
 // accounts, so both reach the ledger as well as the balances themselves.
-const BALANCES = ['/accounts', '/networth', ...LEDGER]
+// `/retirement` rides along because the projection compounds forward from the
+// current investment total — move that and every point on the curve moves.
+const BALANCES = ['/accounts', '/networth', '/retirement', ...LEDGER]
 
 export const writes = {
   /** An assignment, a transaction, a fund created or ended, a template applied. */
@@ -46,6 +48,13 @@ export const writes = {
   /** An account added, edited, retyped or deleted; goal money marked as physically moved. */
   balances: BALANCES,
 
+  /**
+   * This month's net worth recorded. Only the history moves: the snapshot is a
+   * copy of figures that were already true, so nothing else on the page — not
+   * `/networth` itself — reads differently afterwards.
+   */
+  snapshot: ['/networth/history'],
+
   /** The fixed-expense template rows themselves. Applying the template is a `ledger` write, not this one. */
   template: ['/templates'],
 
@@ -54,7 +63,7 @@ export const writes = {
    * refreshed account balances — which the dashboard's net-cash tile reads,
    * even though nothing has reached the fund ledger until an item is approved.
    */
-  plaid: ['/plaid', '/inbox', '/accounts', '/networth', '/dashboard'],
+  plaid: ['/plaid', '/inbox', '/accounts', '/networth', '/retirement', '/dashboard'],
 
   /** The seed reset replaces the database, so nothing on screen survives it. */
   everything: [''],

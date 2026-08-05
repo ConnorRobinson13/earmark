@@ -20,6 +20,7 @@ from .routers import (
     networth,
     paydays,
     plaid,
+    retirement,
     settlements,
     suggest,
     templates,
@@ -102,6 +103,7 @@ app.include_router(monthly_meta.router)
 app.include_router(networth.router)
 app.include_router(cashflow.router)
 app.include_router(paydays.router)
+app.include_router(retirement.router)
 
 
 @app.get("/healthz")

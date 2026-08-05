@@ -81,6 +81,9 @@ export const api = {
 
   networth: () => req('/networth'),
   networthHistory: () => req('/networth/history'),
+  // Recording this month's net worth is a write, and the only thing that makes
+  // the trend chart accrue — reading `/networth` deliberately writes nothing.
+  networthSnapshot: () => req('/networth/snapshot', { method: 'POST' }),
 
   paydays: {
     list: () => req('/paydays'),

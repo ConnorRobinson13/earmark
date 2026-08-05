@@ -23,5 +23,25 @@ export const keys = {
   templates: () => '/templates',
   networth: () => '/networth',
   networthHistory: () => '/networth/history',
+  /**
+   * The retirement projection, which the backend computes.
+   *
+   * Every assumption is in the key, because every assumption changes the
+   * answer — a moved slider is a different question and gets its own round
+   * trip. The field order is fixed here rather than left to the caller so the
+   * same assumptions always spell the same key.
+   *
+   * The starting balance is deliberately absent: it is the current investment
+   * total, and the endpoint reads it. Passing it would let this client and the
+   * MCP tool project from two different numbers.
+   */
+  retirementProjection: (p) =>
+    '/retirement/projection'
+    + `?current_age=${p.currentAge}`
+    + `&retire_age=${p.retireAge}`
+    + `&annual_return_pct=${p.annualReturnPct}`
+    + `&monthly_contribution=${p.monthlyContribution}`
+    + `&contribution_growth_pct=${p.contributionGrowthPct}`
+    + `&inflation_pct=${p.inflationPct}`,
   plaidItems: () => '/plaid/items',
 }
