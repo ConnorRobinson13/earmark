@@ -36,7 +36,6 @@ MONTH_ENDPOINTS = {
         "/bulk/set-monthly-income",
         {"month": "{month}", "amount": "1000"},
     ),
-    "apply-template": ("POST", "/templates/apply", {"month": "{month}"}),
     "archive-fund": ("DELETE", "/funds/{fund_id}?month={month}", None),
 }
 
@@ -59,9 +58,6 @@ def send(client):
         if "{fund_id}" in url:
             fund_id = client.post("/funds", json={"name": f"Fund {name} {month}"}).json()["id"]
             url = url.replace("{fund_id}", str(fund_id))
-        if name == "apply-template":
-            fund_id = client.post("/funds", json={"name": f"Fund {name} {month}"}).json()["id"]
-            client.put("/templates", json=[{"fund_id": fund_id, "planned_amount": "50"}])
         if body is not None:
             body = {k: v.replace("{month}", month) for k, v in body.items()}
         return client.request(method, url.replace("{month}", month), json=body)

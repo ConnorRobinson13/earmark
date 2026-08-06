@@ -55,9 +55,6 @@ export const writes = {
    */
   snapshot: ['/networth/history'],
 
-  /** The fixed-expense template rows themselves. Applying the template is a `ledger` write, not this one. */
-  template: ['/templates'],
-
   /**
    * A Plaid link, unlink or sync: a changed item list, new inbox items, and
    * refreshed account balances — which the dashboard's net-cash tile reads,

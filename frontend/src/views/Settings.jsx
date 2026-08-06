@@ -336,7 +336,7 @@ function ResetSection() {
   return (
     <div className="stack">
       <div className="muted small">
-        Wipes all accounts, funds, transactions, and templates, then re-runs the seed script.
+        Wipes all accounts, funds, and transactions, then re-runs the seed script.
       </div>
       <div className="row" style={{ gap: 8 }}>
         <button className="btn danger" onClick={reset} disabled={busy}>Reset to seed</button>

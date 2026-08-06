@@ -20,7 +20,6 @@ export const keys = {
   fund: (id) => `/funds/${id}`,
   fundTransactions: (id) => `/transactions?fund_id=${id}&limit=200`,
   pendingSettlements: (month) => `/settlements/pending${month ? `?month=${month}` : ''}`,
-  templates: () => '/templates',
   networth: () => '/networth',
   networthHistory: () => '/networth/history',
   /**
