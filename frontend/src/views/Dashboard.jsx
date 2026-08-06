@@ -57,8 +57,7 @@ export default function Dashboard() {
           <div className={`big-num ${uTone}`}>{fmt(u)}</div>
           <div className="sub">{uMessage}. Zero-based means every dollar should land in a fund before the month is out.</div>
           <div className="pill-row">
-            <Link to="/planner" className="btn primary sm">Open planner →</Link>
-            <Link to="/quick-add" className="btn sm">+ Record income</Link>
+            <Link to="/quick-add" className="btn primary sm">+ Record income</Link>
             <CopyPrevMonthButton currentMonth={month} />
           </div>
         </div>

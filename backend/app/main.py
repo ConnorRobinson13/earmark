@@ -23,7 +23,6 @@ from .routers import (
     retirement,
     settlements,
     suggest,
-    templates,
     transactions,
 )
 
@@ -92,7 +91,6 @@ app.include_router(funds.router)
 app.include_router(transactions.router)
 app.include_router(accounts.router)
 app.include_router(dashboard.router)
-app.include_router(templates.router)
 app.include_router(suggest.router)
 app.include_router(inbox.router)
 app.include_router(plaid.router)

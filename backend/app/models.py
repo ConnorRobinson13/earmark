@@ -142,14 +142,6 @@ class Transaction(Base):
     fund: Mapped[Optional[Fund]] = relationship(back_populates="transactions")
 
 
-class MonthlyTemplate(Base):
-    __tablename__ = "monthly_templates"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    fund_id: Mapped[int] = mapped_column(ForeignKey("funds.id"))
-    planned_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
-
-
 class MonthlyMeta(Base):
     """Per-month planning numbers. Today this is just the expected income for
     the month; Unassigned is computed against this figure (EveryDollar-style)

@@ -12,7 +12,7 @@ def reset_to_seed(keep_accounts: bool = True):
     """Wipe budget data and re-run the seed script.
 
     keep_accounts (default True): preserves Plaid items + Account rows so live
-    bank linkage stays intact. Wipes funds, transactions, templates, inbox,
+    bank linkage stays intact. Wipes funds, transactions, inbox,
     goal_settlements only. Pass ?keep_accounts=false to nuke everything.
     """
     args = [sys.executable, "scripts/seed.py"]

@@ -16,7 +16,6 @@ function routes(overrides = {}) {
     ...shellRoutes({ inbox: INBOX, dashboard: emptyDashboard({ unassigned: '120.50' }) }),
     [keys.accounts()]: [],
     [keys.funds()]: [],
-    [keys.templates()]: [],
     ...overrides,
   }
 }
@@ -33,7 +32,7 @@ describe('Shell', () => {
   })
 
   it('fills the nav badge before any view has mounted that reads the inbox', async () => {
-    renderApp(routes(), { route: '/planner' })
+    renderApp(routes(), { route: '/settings' })
 
     await waitFor(() => expect(document.querySelector('.dock .badge').textContent).toBe('2'))
   })

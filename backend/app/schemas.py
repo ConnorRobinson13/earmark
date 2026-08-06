@@ -136,19 +136,6 @@ class AccountOut(AccountBase):
     last_synced_at: Optional[datetime] = None
 
 
-# ---------- Templates ----------
-
-class TemplateItem(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    id: Optional[int] = None
-    fund_id: int
-    planned_amount: Decimal
-
-
-class TemplateApply(BaseModel):
-    month: str  # YYYY-MM or YYYY-MM-DD — read by app.month.parse_month
-
-
 # ---------- Paydays ----------
 
 class PaydayCreate(BaseModel):

@@ -44,12 +44,6 @@ export const api = {
     delete: (id) => req(`/accounts/${id}`, { method: 'DELETE' }),
   },
 
-  templates: {
-    list: () => req('/templates'),
-    replace: (items) => req('/templates', { method: 'PUT', body: JSON.stringify(items) }),
-    apply: (month) => req('/templates/apply', { method: 'POST', body: JSON.stringify({ month }) }),
-  },
-
   suggest: (merchant, amount) =>
     req('/suggest', { method: 'POST', body: JSON.stringify({ merchant, amount }) }),
 

@@ -4,7 +4,6 @@ import Dashboard from './views/Dashboard'
 import QuickAdd from './views/QuickAdd'
 import Inbox from './views/Inbox'
 import Goals from './views/Goals'
-import Planner from './views/Planner'
 import FundDetail from './views/FundDetail'
 import Settings from './views/Settings'
 import NetWorth from './views/NetWorth'
@@ -23,7 +22,6 @@ export default function App() {
         <Route path="/quick-add" element={<QuickAdd />} />
         <Route path="/inbox" element={<Inbox />} />
         <Route path="/goals" element={<Goals />} />
-        <Route path="/planner" element={<Planner />} />
         <Route path="/networth" element={<NetWorth />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="*" element={<Navigate to="/" replace />} />
@@ -65,7 +63,6 @@ function NavDock() {
     { to: '/',         label: 'Dashboard', icon: 'home'  },
     { to: '/inbox',    label: 'Inbox',     icon: 'inbox', badge: inboxCount || null },
     { to: '/goals',    label: 'Goals',     icon: 'flag'  },
-    { to: '/planner',  label: 'Planner',   icon: 'plan'  },
     { to: '/networth', label: 'Net worth', icon: 'spark' },
   ]
   return (
