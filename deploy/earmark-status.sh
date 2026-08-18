@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+# What `/earmark` answers on Telegram: where to click, plus the handful of
+# things that can rot without anyone noticing.
+#
+# The backup chain in particular is four links long — Windows on, WSL started,
+# tailscaled up, push accepted — and every one of them fails quietly. A backup
+# that stopped running two months ago looks exactly like one that ran last
+# night, right up until you need it. That is the staleness check below.
+#
+# Deliberately not `set -e`: a check that errors should print what went wrong
+# and let the rest of the report continue. A status command that dies on its
+# first bad probe tells you nothing about the other five.
+set -uo pipefail
+
+APP_DIR="${EARMARK_DIR:-$HOME/apps/earmark}"
+COMPOSE=(docker compose -f "$APP_DIR/docker-compose.prod.yml")
+URL="${EARMARK_URL:-https://hermes.tailb39477.ts.net}"
+BACKUP_DIR="${EARMARK_BACKUP_DIR:-$HOME/backups/earmark}"
+PUSH_MARKER="$BACKUP_DIR/.last-push"
+STALE_HOURS="${EARMARK_STALE_HOURS:-36}"
+
+cd "$APP_DIR" 2>/dev/null || { echo "❌ $APP_DIR is missing — is Earmark deployed?"; exit 1; }
+
+echo "🔗 $URL"
+echo
+
+# --- containers -------------------------------------------------------------
+problems=0
+for svc in postgres backend frontend; do
+    cid="$("${COMPOSE[@]}" ps -q "$svc" 2>/dev/null)"
+    if [ -z "$cid" ]; then
+        echo "❌ $svc: not running"
+        problems=$((problems + 1))
+        continue
+    fi
+    state="$(docker inspect --format '{{.State.Status}}' "$cid" 2>/dev/null)"
+    # Not every service defines a healthcheck; treat a missing one as "no
+    # opinion" rather than as a failure.
+    health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}-{{end}}' "$cid" 2>/dev/null)"
+    if [ "$state" = "running" ] && [ "$health" != "unhealthy" ]; then
+        echo "✅ $svc: $state${health:+ ($health)}"
+    else
+        echo "❌ $svc: $state${health:+ ($health)}"
+        problems=$((problems + 1))
+    fi
+done
+
+# --- does the app actually answer? -------------------------------------------
+# Through nginx rather than straight at the backend, so this exercises the same
+# proxy path a phone uses. A healthy backend behind a broken proxy is still a
+# broken app.
+if curl -fsS -m 10 http://127.0.0.1:8088/api/healthz >/dev/null 2>&1; then
+    echo "✅ api: responding through nginx"
+else
+    echo "❌ api: not responding on http://127.0.0.1:8088/api/healthz"
+    problems=$((problems + 1))
+fi
+echo
+
+# --- last Plaid sync ---------------------------------------------------------
+last_sync="$("${COMPOSE[@]}" exec -T postgres \
+    psql -U budget -d budget -tAc "select coalesce(to_char(max(last_synced_at), 'YYYY-MM-DD HH24:MI'), 'never') from accounts" 2>/dev/null | tr -d '[:space:]')"
+echo "🏦 last account sync: ${last_sync:-unknown}"
+
+# --- backups -----------------------------------------------------------------
+newest="$(ls -t "$BACKUP_DIR"/earmark-*.dump.gpg 2>/dev/null | head -1)"
+if [ -n "$newest" ]; then
+    age_h=$(( ( $(date +%s) - $(stat -c %Y "$newest") ) / 3600 ))
+    echo "💾 newest local backup: ${age_h}h old ($(basename "$newest"))"
+else
+    echo "❌ no backups in $BACKUP_DIR"
+    problems=$((problems + 1))
+fi
+
+if [ -f "$PUSH_MARKER" ]; then
+    push_age_h=$(( ( $(date +%s) - $(stat -c %Y "$PUSH_MARKER") ) / 3600 ))
+    if [ "$push_age_h" -gt "$STALE_HOURS" ]; then
+        echo "⚠️  last push to connorpc: ${push_age_h}h ago — STALE (>${STALE_HOURS}h)"
+        echo "    Is the Windows box on and WSL running?"
+        problems=$((problems + 1))
+    else
+        echo "📤 last push to connorpc: ${push_age_h}h ago"
+    fi
+else
+    echo "⚠️  no successful push to connorpc yet"
+    problems=$((problems + 1))
+fi
+
+# --- deployed revision -------------------------------------------------------
+echo
+echo "📦 deployed: $(git -C "$APP_DIR" log -1 --format='%h %s' 2>/dev/null || echo unknown)"
+
+echo
+if [ "$problems" -eq 0 ]; then
+    echo "All good."
+else
+    echo "$problems problem(s) above."
+fi
+exit 0

@@ -1,0 +1,30 @@
+# Two stages: build the SPA with the full toolchain, then ship only its output.
+# The runtime image has no node, no node_modules and no source — it is nginx
+# plus a `dist/`, which is also why it needs no bind mount to run.
+#
+# `frontend/Dockerfile` stays as-is for local development (Vite dev server).
+
+# Node 22, not 20: the test suite's jsdom/undici will not load on 20, so 20 is
+# a toolchain nothing here is verified against. Building on the version the
+# tests pass on keeps "tests green" and "image builds" the same statement.
+FROM node:22-alpine AS build
+
+WORKDIR /app
+
+COPY package.json package-lock.json* ./
+RUN npm ci
+
+COPY . .
+
+# VITE_API_URL is deliberately left unset. api.js then falls back to `/api`,
+# which nginx proxies to the backend from the same origin — so the bundle works
+# from any device. Baking a hostname in here is exactly what makes a build work
+# on the machine that produced it and nowhere else.
+RUN npm run build
+
+FROM nginx:1.27-alpine
+
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/dist /usr/share/nginx/html
+
+EXPOSE 80
