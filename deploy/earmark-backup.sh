@@ -38,6 +38,10 @@ NAME="earmark-$TS.dump.gpg"
 
 fail() { echo "$1" >&2; printf '%s\n%s\n' "$(date -Is)" "$1" > "$ERROR_MARKER"; exit 1; }
 
+# The dumps are encrypted, but there is no reason for them to be world-readable
+# on the way in either.
+umask 077
+
 mkdir -p "$BACKUP_DIR"
 [ -r "$PASS_FILE" ] || fail "passphrase file $PASS_FILE is missing or unreadable"
 

@@ -58,8 +58,12 @@ fi
 echo
 
 # --- last Plaid sync ---------------------------------------------------------
+# Trimmed rather than stripped of all whitespace — the timestamp has a space in
+# the middle of it, and deleting that turned "2026-08-14 19:32" into
+# "2026-08-1419:32".
 last_sync="$("${COMPOSE[@]}" exec -T postgres \
-    psql -U budget -d budget -tAc "select coalesce(to_char(max(last_synced_at), 'YYYY-MM-DD HH24:MI'), 'never') from accounts" 2>/dev/null | tr -d '[:space:]')"
+    psql -U budget -d budget -tAc "select coalesce(to_char(max(last_synced_at), 'YYYY-MM-DD HH24:MI'), 'never') from accounts" 2>/dev/null \
+    | tr -d '\r' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
 echo "🏦 last account sync: ${last_sync:-unknown}"
 
 # --- backups -----------------------------------------------------------------

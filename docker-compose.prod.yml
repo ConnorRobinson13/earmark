@@ -76,7 +76,10 @@ services:
       backend:
         condition: service_started
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost/ >/dev/null || exit 1"]
+      # 127.0.0.1, not localhost: nginx listens on IPv4 only, and `localhost`
+      # resolves to ::1 first inside the container, so the probe was reporting
+      # the whole web tier unhealthy while it served traffic normally.
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
