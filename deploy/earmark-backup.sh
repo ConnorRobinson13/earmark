@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Nightly backup: dump, encrypt, prune, push to connorpc.
+# Nightly backup: dump, encrypt, prune, push to the peer machine.
 #
 # Encrypted because hermes is a rented VPS. The provider can snapshot that
 # disk, so an unencrypted dump puts a complete financial history on hardware
@@ -10,37 +10,29 @@
 # passphrase whose only copy died with it protects the attacker's problem
 # rather than yours. See deploy/README.md.
 #
-# On reachability: connorpc is a WSL instance on a desktop that is often off.
+# On reachability: the peer is a WSL instance on a desktop that is often off.
 # That is expected, not a failure, and it is reported as such — a job that
 # cries wolf every night you are away from your desk is a job whose output you
 # will stop reading, which costs you the one real alert. Unreachable is quiet;
-# reachable-but-failed is loud.
+# reachable-but-failed is loud, and lands in the error marker that
+# earmark-status.sh reads out.
 set -uo pipefail
 
-APP_DIR="${EARMARK_DIR:-$HOME/apps/earmark}"
-COMPOSE=(docker compose -f "$APP_DIR/docker-compose.prod.yml")
-BACKUP_DIR="${EARMARK_BACKUP_DIR:-$HOME/backups/earmark}"
-PASS_FILE="${EARMARK_PASS_FILE:-$HOME/.earmark-backup.pass}"
-KEEP_DAYS="${EARMARK_KEEP_DAYS:-14}"
+# shellcheck source=deploy/lib.sh
+. "$(dirname "$(readlink -f "$0")")/lib.sh"
 
-# connorpc — the WSL node. Pushes land as `earmarkbk`, an unprivileged account
-# whose only job is receiving these files, so a compromised hermes gets a
-# backup directory rather than a shell as connor.
-PEER_HOST="${EARMARK_PEER_HOST:-100.79.146.80}"
-PEER_USER="${EARMARK_PEER_USER:-earmarkbk}"
-PEER_DIR="${EARMARK_PEER_DIR:-backups/earmark}"
+# How long pushed copies live on the peer. Longer than the 14 days kept here,
+# because that machine has room and it is the copy that survives losing hermes.
+PEER_KEEP_DAYS="${EARMARK_PEER_KEEP_DAYS:-90}"
 
-PUSH_MARKER="$BACKUP_DIR/.last-push"
-ERROR_MARKER="$BACKUP_DIR/.last-error"
+# The dumps are encrypted, but there is no reason for them to be world-readable
+# on the way in either.
+umask 077
 
 TS="$(date +%Y%m%d-%H%M%S)"
 NAME="earmark-$TS.dump.gpg"
 
 fail() { echo "$1" >&2; printf '%s\n%s\n' "$(date -Is)" "$1" > "$ERROR_MARKER"; exit 1; }
-
-# The dumps are encrypted, but there is no reason for them to be world-readable
-# on the way in either.
-umask 077
 
 mkdir -p "$BACKUP_DIR"
 [ -r "$PASS_FILE" ] || fail "passphrase file $PASS_FILE is missing or unreadable"
@@ -66,39 +58,44 @@ mv "$TMP" "$BACKUP_DIR/$NAME"
 trap - EXIT
 echo "wrote $BACKUP_DIR/$NAME (${size}B)"
 
-# --- prune ------------------------------------------------------------------
 find "$BACKUP_DIR" -name 'earmark-*.dump.gpg' -mtime "+$KEEP_DAYS" -delete
 
 # --- push -------------------------------------------------------------------
+if [ -z "$PEER_HOST" ]; then
+    echo "no EARMARK_PEER_HOST configured — keeping the local copy only"
+    exit 0
+fi
+
 # Reachability is probed with a TCP connect to :22 rather than `tailscale ping`,
 # because the ACL only opens port 22 in this direction — a ping would report
 # "down" for a peer that is up and accepting the very connection we want.
 if ! timeout 5 bash -c "</dev/tcp/$PEER_HOST/22" 2>/dev/null; then
-    echo "connorpc unreachable — skipping push (expected when the desktop is off)"
+    echo "peer unreachable — skipping push (expected when the desktop is off)"
     exit 0
 fi
 
 # Reachable from here on, so anything that fails now is a real fault.
 SSH=(ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10)
+PEER="$PEER_USER@$PEER_HOST"
 
-if ! "${SSH[@]}" "$PEER_USER@$PEER_HOST" "mkdir -p '$PEER_DIR'" 2>/dev/null; then
-    fail "connorpc is up but SSH as $PEER_USER failed — check the Tailscale ACL ssh block"
+if ! "${SSH[@]}" "$PEER" "mkdir -p '$PEER_DIR'" 2>/dev/null; then
+    fail "peer is up but SSH as $PEER_USER failed — check the Tailscale ACL ssh block"
 fi
 
 # Written to a .partial and renamed, so an interrupted transfer can never be
 # mistaken for a complete backup by whatever reads that directory later.
-if ! "${SSH[@]}" "$PEER_USER@$PEER_HOST" \
+if ! "${SSH[@]}" "$PEER" \
         "cat > '$PEER_DIR/.$NAME.partial' && mv '$PEER_DIR/.$NAME.partial' '$PEER_DIR/$NAME'" \
         < "$BACKUP_DIR/$NAME"; then
-    fail "push to connorpc failed"
+    fail "push to peer failed"
 fi
 
-remote_size="$("${SSH[@]}" "$PEER_USER@$PEER_HOST" "stat -c %s '$PEER_DIR/$NAME'" 2>/dev/null)"
+remote_size="$("${SSH[@]}" "$PEER" "stat -c %s '$PEER_DIR/$NAME'" 2>/dev/null)"
 [ "$remote_size" = "$size" ] || fail "pushed size $remote_size != local $size"
 
-"${SSH[@]}" "$PEER_USER@$PEER_HOST" \
-    "find '$PEER_DIR' -name 'earmark-*.dump.gpg' -mtime +90 -delete" 2>/dev/null
+"${SSH[@]}" "$PEER" \
+    "find '$PEER_DIR' -name 'earmark-*.dump.gpg' -mtime +$PEER_KEEP_DAYS -delete" 2>/dev/null
 
 date -Is > "$PUSH_MARKER"
 rm -f "$ERROR_MARKER"
-echo "pushed $NAME to $PEER_USER@connorpc:$PEER_DIR"
+echo "pushed $NAME to $PEER:$PEER_DIR"

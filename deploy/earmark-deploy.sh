@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Pull master, rebuild, restart — with one gate in the middle.
+# Pull, rebuild, restart — with one gate in the middle.
 #
 # Nothing in this repo runs migrations automatically. That is fine while the
 # schema is still, but the moment a PR adds `0018_*.py`, a plain
@@ -13,8 +13,9 @@
 # specific migration, not by a chat message.
 set -euo pipefail
 
-APP_DIR="${EARMARK_DIR:-$HOME/apps/earmark}"
-COMPOSE=(docker compose -f "$APP_DIR/docker-compose.prod.yml")
+# shellcheck source=deploy/lib.sh
+. "$(dirname "$(readlink -f "$0")")/lib.sh"
+
 # master in normal operation; overridable so a deployment can be validated from
 # a branch before it is merged, which is the only way to test this script
 # without merging first.
@@ -42,19 +43,28 @@ echo "▶ building"
 
 # --- the gate ---------------------------------------------------------------
 # `alembic current` reports what the database has applied; `alembic heads` what
-# the checkout expects. Both print `<rev> (head)`, so the first field is the
-# revision. Run against the freshly built image so the answer reflects the code
-# about to be deployed, not the code currently running.
+# the checkout expects. Run against the freshly built image so the answer
+# reflects the code about to be deployed, not the code currently running.
 echo "▶ checking migrations"
 db_rev="$("${COMPOSE[@]}" run --rm -T backend alembic current 2>/dev/null | grep -oE '^[0-9a-z_]+' | tail -1)"
-code_rev="$("${COMPOSE[@]}" run --rm -T backend alembic heads 2>/dev/null | grep -oE '^[0-9a-z_]+' | tail -1)"
+mapfile -t code_revs < <("${COMPOSE[@]}" run --rm -T backend alembic heads 2>/dev/null | grep -oE '^[0-9a-z_]+')
 
-if [ -z "$db_rev" ] || [ -z "$code_rev" ]; then
-    echo "❌ could not read migration state (db='$db_rev' code='$code_rev')."
+if [ -z "$db_rev" ] || [ "${#code_revs[@]}" -eq 0 ]; then
+    echo "❌ could not read migration state (db='$db_rev' heads='${code_revs[*]:-}')."
     echo "   Not deploying. The previous version is still running."
     exit 1
 fi
 
+# More than one head means the migration tree has branched — two migrations
+# claiming the same parent. Picking one and comparing against it would report
+# "up to date" while half the schema change sits unapplied, so refuse instead.
+if [ "${#code_revs[@]}" -gt 1 ]; then
+    echo "❌ Multiple migration heads: ${code_revs[*]}"
+    echo "   The tree has branched and needs a merge revision. Not deploying."
+    exit 2
+fi
+
+code_rev="${code_revs[0]}"
 if [ "$db_rev" != "$code_rev" ]; then
     cat <<EOF
 ❌ Migration pending — NOT deploying.
@@ -65,7 +75,7 @@ if [ "$db_rev" != "$code_rev" ]; then
 The previous version is still running and serving normally. To go ahead,
 back up first and then apply it by hand:
 
-    ~/apps/earmark/deploy/earmark-backup.sh
+    $APP_DIR/deploy/earmark-backup.sh
     docker compose -f $APP_DIR/docker-compose.prod.yml run --rm backend alembic upgrade head
     $APP_DIR/deploy/earmark-deploy.sh
 EOF
@@ -78,7 +88,7 @@ echo "▶ restarting"
 
 echo "▶ waiting for health"
 for _ in $(seq 1 30); do
-    if curl -fsS -m 5 http://127.0.0.1:8088/api/healthz >/dev/null 2>&1; then
+    if curl -fsS -m 5 "$EARMARK_LOCAL_URL/api/healthz" >/dev/null 2>&1; then
         echo "✅ deployed $(git log -1 --format='%h %s')"
         exit 0
     fi

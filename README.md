@@ -15,7 +15,8 @@ the parts of zero-based budgeting that work, drops the monthly-reset busywork,
 and layers on bank sync and an AI assistant you can literally talk to about
 your money.
 
-Runs entirely on your own machine with Docker.
+Runs entirely on your own machine with Docker — or on a private server you
+control, reachable only over your own network. See [deploy/](deploy/).
 
 ![Dashboard](docs/dashboard.png)
 
@@ -183,7 +184,9 @@ litellm.
 backend/    FastAPI app, services (accounting lives in services/), Alembic migrations
 frontend/   Vite + React PWA
 mcp/        MCP server that wraps the backend API
-docker-compose.yml
+deploy/     scripts and docs for running it on a private server
+docker-compose.yml       development stack
+docker-compose.prod.yml  production stack: built assets, one origin, nothing published publicly
 ```
 
 All balance and accounting math lives in `backend/app/services/` so the API and
@@ -195,6 +198,12 @@ the MCP server share exactly one source of truth.
 
 Single-user, **no authentication**, meant for localhost. Do not expose it to the
 internet without putting your own auth in front. Read [SECURITY.md](SECURITY.md).
+
+If you want it on your phone, put it on a private network rather than on the
+public internet — [deploy/](deploy/) documents running it behind Tailscale,
+where the network is the access control. An unguessable URL is not a substitute:
+URLs leak through history, sync and `Referer` headers, and a port that is open
+for an hour is found in minutes.
 
 ## Contributing
 

@@ -7,48 +7,57 @@
 # restoring, either hermes is gone or you are verifying that a backup is real.
 #
 # Verifying is the good reason, and you should do it: a backup nobody has ever
-# restored is a hypothesis. Use --verify, which restores into a throwaway
-# container and prints row counts, touching nothing that matters.
-#
-# Usage:
-#   ./restore.sh --verify  earmark-20260818-060000.dump.gpg
-#   ./restore.sh --into-db earmark-20260818-060000.dump.gpg   # real restore
+# restored is a hypothesis.
 set -euo pipefail
+
+# shellcheck source=deploy/lib.sh
+. "$(dirname "$(readlink -f "$0")")/lib.sh"
 
 MODE="${1:-}"
 FILE="${2:-}"
-PASS_FILE="${EARMARK_PASS_FILE:-$HOME/.earmark-backup.pass}"
-APP_DIR="${EARMARK_DIR:-$HOME/apps/earmark}"
 
-TABLES="funds accounts transactions monthly_meta goal_settlements plaid_inbox payday_schedule networth_snapshots plaid_items alembic_version"
+usage() {
+    cat <<'EOF'
+Restore an encrypted Earmark backup.
 
-usage() { sed -n '2,17p' "$0" | sed 's/^# \?//'; exit 1; }
+  restore.sh --verify  <file.dump.gpg>   restore into a throwaway container and
+                                         print row counts. Touches nothing.
+
+  restore.sh --into-db <file.dump.gpg>   replace the deployed database. Asks for
+                                         confirmation. Destroys what is there.
+
+The passphrase is read from $EARMARK_PASS_FILE (default ~/.earmark-backup.pass).
+EOF
+    exit 1
+}
+
 [ -n "$FILE" ] && [ -r "$FILE" ] || usage
 [ -r "$PASS_FILE" ] || { echo "passphrase file $PASS_FILE missing"; exit 1; }
 
-counts_sql() {
-    local first=1
-    for t in $TABLES; do
-        [ $first -eq 1 ] && first=0 || printf ' union all '
-        printf "select '%s', count(*) from %s" "$t" "$t"
-    done
-    printf ' order by 1;'
+# Counts every table the database actually has, rather than a list maintained
+# by hand here. A hand-kept list stops covering a new model silently, and the
+# place that goes wrong is backup verification — where a missing table looks
+# exactly like a table that was always empty.
+counts_sql_for() {
+    local runner=("$@")
+    "${runner[@]}" psql -U budget -d budget -tAc "
+        select string_agg(
+            format('select %L, count(*) from %I', tablename, tablename),
+            ' union all ' order by tablename)
+        from pg_tables where schemaname = 'public';"
 }
 
 case "$MODE" in
 --verify)
-    # A disposable container on a random high port, removed on exit whatever
-    # happens. Nothing here touches the deployed stack.
+    # A disposable container, removed on exit whatever happens. Nothing here
+    # touches the deployed stack.
     CID="earmark-restore-check-$$"
     trap 'docker rm -f "$CID" >/dev/null 2>&1 || true' EXIT
     echo "▶ starting throwaway postgres"
     docker run -d --name "$CID" \
         -e POSTGRES_USER=budget -e POSTGRES_PASSWORD=verify -e POSTGRES_DB=budget \
         pgvector/pgvector:pg16 >/dev/null
-    for _ in $(seq 1 30); do
-        docker exec "$CID" pg_isready -U budget >/dev/null 2>&1 && break
-        sleep 2
-    done
+    until docker exec "$CID" pg_isready -U budget >/dev/null 2>&1; do sleep 2; done
     docker exec "$CID" psql -U budget -d budget -c 'CREATE EXTENSION IF NOT EXISTS vector;' >/dev/null
 
     echo "▶ decrypting and restoring"
@@ -56,7 +65,8 @@ case "$MODE" in
         | docker exec -i "$CID" pg_restore -U budget -d budget --no-owner --no-privileges
 
     echo "▶ row counts"
-    docker exec "$CID" psql -U budget -d budget -tAc "$(counts_sql)"
+    sql="$(counts_sql_for docker exec "$CID")"
+    docker exec "$CID" psql -U budget -d budget -tAc "$sql"
     echo "✅ backup restores cleanly. Compare the counts above against /earmark."
     ;;
 
@@ -66,7 +76,6 @@ case "$MODE" in
     read -r -p "Type the word 'restore' to continue: " confirm
     [ "$confirm" = "restore" ] || { echo "aborted"; exit 1; }
 
-    COMPOSE=(docker compose -f "$APP_DIR/docker-compose.prod.yml")
     echo "▶ stopping writers"
     "${COMPOSE[@]}" stop backend frontend
 
@@ -81,7 +90,8 @@ case "$MODE" in
         | "${COMPOSE[@]}" exec -T postgres pg_restore -U budget -d budget --no-owner --no-privileges
 
     echo "▶ row counts"
-    "${COMPOSE[@]}" exec -T postgres psql -U budget -d budget -tAc "$(counts_sql)"
+    sql="$(counts_sql_for "${COMPOSE[@]}" exec -T postgres)"
+    "${COMPOSE[@]}" exec -T postgres psql -U budget -d budget -tAc "$sql"
 
     "${COMPOSE[@]}" start backend frontend
     echo "✅ restored."

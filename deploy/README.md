@@ -7,6 +7,18 @@ optional hardening, it *is* the access control.
 
 hermes is the sole source of truth. Backups flow one way, to `connorpc`.
 
+## Files
+
+| File | What |
+|---|---|
+| `lib.sh` | shared config, sourced by the four scripts. One place for the port, the peer and the paths |
+| `earmark-status.sh` | what `/earmark` reports on Telegram |
+| `earmark-deploy.sh` | pull, rebuild, restart — refuses if a migration is pending |
+| `earmark-backup.sh` | dump, encrypt, push (the systemd timer runs this) |
+| `restore.sh` | `--verify` proves a backup is real; `--into-db` is break-glass |
+| `connorpc-setup.sh` | run on the peer box, with sudo, once |
+| `hermes-skill/SKILL.md` | the `/earmark` Telegram skill; install to `~/.hermes/skills/devops/earmark/` |
+
 ## Layout
 
 | Path | What |
@@ -24,13 +36,15 @@ Apply the ACL (admin console → Access controls). It must grant
 `hermes → connorpc:22` and an `ssh` block allowing the `earmarkbk` user,
 or backups cannot push. Enable HTTPS certificates under DNS.
 
-### 2. On `connorpc` (the WSL box) — receives backups
+### 2. On the peer box (WSL) — receives backups
 
 ```bash
-sudo adduser --disabled-password --gecos "Earmark backups" earmarkbk
-sudo -u earmarkbk mkdir -p /home/earmarkbk/backups/earmark
-sudo tailscale set --ssh          # Tailscale SSH server; no keys to steal
+sudo ./deploy/connorpc-setup.sh
 ```
+
+It creates the unprivileged `earmarkbk` account, its backup directory, and
+enables Tailscale SSH — no sshd host key, no `authorized_keys`, nothing on
+hermes worth stealing.
 
 Add a Windows Task Scheduler entry at logon so the node is on the tailnet
 whenever the desktop is, not only when a terminal happens to be open:
@@ -51,7 +65,8 @@ cd earmark
 cp .env.example .env
 chmod 600 .env
 python3 -c "import secrets; print('POSTGRES_PASSWORD=' + secrets.token_urlsafe(32))" >> .env
-$EDITOR .env        # add PLAID_CLIENT_ID / PLAID_SECRET / PLAID_ENV
+$EDITOR .env        # PLAID_CLIENT_ID / PLAID_SECRET / PLAID_ENV, and the
+                    # EARMARK_URL / EARMARK_PEER_HOST deployment values
 
 # Backup passphrase
 openssl rand -base64 48 > ~/.earmark-backup.pass && chmod 600 ~/.earmark-backup.pass
@@ -98,14 +113,18 @@ Then verify a pushed dump actually restores, on `connorpc`:
 
 Until that has passed once, you have backups you have never tested.
 
-## Day to day
+### 7. The Telegram command
 
-| Command | Effect |
-|---|---|
-| `deploy/earmark-status.sh` | what `/earmark` reports on Telegram |
-| `deploy/earmark-deploy.sh` | pull, rebuild, restart — refuses if a migration is pending |
-| `deploy/earmark-backup.sh` | dump, encrypt, push (the timer runs this) |
-| `deploy/restore.sh --verify F` | prove a backup is real, touching nothing |
+```bash
+mkdir -p ~/.hermes/skills/devops/earmark
+cp deploy/hermes-skill/SKILL.md ~/.hermes/skills/devops/earmark/
+sudo systemctl reload hermes-gateway.service
+```
+
+The skill invokes the scripts above and nothing else. That boundary is the
+point: hermes is an LLM agent reading a chat channel, so the commands it can
+run against real financial data are a fixed set on disk, never shell it
+assembles from what a message said.
 
 ## When a deploy refuses
 

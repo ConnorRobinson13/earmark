@@ -5,33 +5,29 @@
 # The backup chain in particular is four links long — Windows on, WSL started,
 # tailscaled up, push accepted — and every one of them fails quietly. A backup
 # that stopped running two months ago looks exactly like one that ran last
-# night, right up until you need it. That is the staleness check below.
+# night, right up until you need it.
 #
 # Deliberately not `set -e`: a check that errors should print what went wrong
 # and let the rest of the report continue. A status command that dies on its
 # first bad probe tells you nothing about the other five.
 set -uo pipefail
 
-APP_DIR="${EARMARK_DIR:-$HOME/apps/earmark}"
-COMPOSE=(docker compose -f "$APP_DIR/docker-compose.prod.yml")
-URL="${EARMARK_URL:-https://hermes.tailb39477.ts.net}"
-BACKUP_DIR="${EARMARK_BACKUP_DIR:-$HOME/backups/earmark}"
-PUSH_MARKER="$BACKUP_DIR/.last-push"
-STALE_HOURS="${EARMARK_STALE_HOURS:-36}"
+# shellcheck source=deploy/lib.sh
+. "$(dirname "$(readlink -f "$0")")/lib.sh"
 
 cd "$APP_DIR" 2>/dev/null || { echo "❌ $APP_DIR is missing — is Earmark deployed?"; exit 1; }
 
-echo "🔗 $URL"
+echo "🔗 $EARMARK_URL"
 echo
 
-# --- containers -------------------------------------------------------------
 problems=0
+note_problem() { problems=$((problems + 1)); }
+
+# --- containers -------------------------------------------------------------
 for svc in postgres backend frontend; do
     cid="$("${COMPOSE[@]}" ps -q "$svc" 2>/dev/null)"
     if [ -z "$cid" ]; then
-        echo "❌ $svc: not running"
-        problems=$((problems + 1))
-        continue
+        echo "❌ $svc: not running"; note_problem; continue
     fi
     state="$(docker inspect --format '{{.State.Status}}' "$cid" 2>/dev/null)"
     # Not every service defines a healthcheck; treat a missing one as "no
@@ -40,8 +36,7 @@ for svc in postgres backend frontend; do
     if [ "$state" = "running" ] && [ "$health" != "unhealthy" ]; then
         echo "✅ $svc: $state${health:+ ($health)}"
     else
-        echo "❌ $svc: $state${health:+ ($health)}"
-        problems=$((problems + 1))
+        echo "❌ $svc: $state${health:+ ($health)}"; note_problem
     fi
 done
 
@@ -49,11 +44,10 @@ done
 # Through nginx rather than straight at the backend, so this exercises the same
 # proxy path a phone uses. A healthy backend behind a broken proxy is still a
 # broken app.
-if curl -fsS -m 10 http://127.0.0.1:8088/api/healthz >/dev/null 2>&1; then
+if curl -fsS -m 10 "$EARMARK_LOCAL_URL/api/healthz" >/dev/null 2>&1; then
     echo "✅ api: responding through nginx"
 else
-    echo "❌ api: not responding on http://127.0.0.1:8088/api/healthz"
-    problems=$((problems + 1))
+    echo "❌ api: not responding on $EARMARK_LOCAL_URL/api/healthz"; note_problem
 fi
 echo
 
@@ -72,8 +66,17 @@ if [ -n "$newest" ]; then
     age_h=$(( ( $(date +%s) - $(stat -c %Y "$newest") ) / 3600 ))
     echo "💾 newest local backup: ${age_h}h old ($(basename "$newest"))"
 else
-    echo "❌ no backups in $BACKUP_DIR"
-    problems=$((problems + 1))
+    echo "❌ no backups in $BACKUP_DIR"; note_problem
+fi
+
+# A hard failure is reported before staleness and separately from it. Both
+# would otherwise surface as the same 36h warning, which is precisely the
+# conflation this is meant to avoid: "your desktop was off" and "the push is
+# broken" need different reactions from you.
+if [ -f "$ERROR_MARKER" ]; then
+    echo "❌ last backup run FAILED:"
+    sed 's/^/    /' "$ERROR_MARKER"
+    note_problem
 fi
 
 if [ -f "$PUSH_MARKER" ]; then
@@ -81,13 +84,12 @@ if [ -f "$PUSH_MARKER" ]; then
     if [ "$push_age_h" -gt "$STALE_HOURS" ]; then
         echo "⚠️  last push to connorpc: ${push_age_h}h ago — STALE (>${STALE_HOURS}h)"
         echo "    Is the Windows box on and WSL running?"
-        problems=$((problems + 1))
+        note_problem
     else
         echo "📤 last push to connorpc: ${push_age_h}h ago"
     fi
 else
-    echo "⚠️  no successful push to connorpc yet"
-    problems=$((problems + 1))
+    echo "⚠️  no successful push to connorpc yet"; note_problem
 fi
 
 # --- deployed revision -------------------------------------------------------
