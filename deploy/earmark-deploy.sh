@@ -15,13 +15,19 @@ set -euo pipefail
 
 APP_DIR="${EARMARK_DIR:-$HOME/apps/earmark}"
 COMPOSE=(docker compose -f "$APP_DIR/docker-compose.prod.yml")
+# master in normal operation; overridable so a deployment can be validated from
+# a branch before it is merged, which is the only way to test this script
+# without merging first.
+BRANCH="${EARMARK_BRANCH:-master}"
 
 cd "$APP_DIR"
 
-echo "▶ fetching"
-git fetch --quiet origin
+echo "▶ fetching origin/$BRANCH"
+git fetch --quiet origin "$BRANCH"
 before="$(git rev-parse HEAD)"
-git merge --ff-only origin/master
+# --ff-only: a deployment should be a fast-forward to what is on the remote,
+# never a merge commit invented on the server.
+git merge --ff-only FETCH_HEAD
 after="$(git rev-parse HEAD)"
 
 if [ "$before" = "$after" ]; then
