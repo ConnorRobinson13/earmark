@@ -61,6 +61,8 @@ export default function FundDetail() {
         <div className="row" style={{ marginTop: 18, gap: 10 }}>
           <span className="eyebrow">Category</span>
           <input
+            className="fd-category-input"
+            aria-label="Category"
             defaultValue={fund.category || ''}
             placeholder="Uncategorized"
             onBlur={async (e) => {
@@ -69,7 +71,6 @@ export default function FundDetail() {
               await api.funds.update(fund.id, { category: v || null })
               invalidate(writes.ledger)
             }}
-            style={{ maxWidth: 240 }}
           />
         </div>
       </div>
@@ -97,7 +98,9 @@ export default function FundDetail() {
                   <div className={`amount ${isIncome ? 'income' : 'outflow'}`}>
                     {n >= 0 ? '+' : ''}{fmt(n)}
                   </div>
-                  <button className="btn ghost sm" title="Delete" onClick={() => del(t.id)}>
+                  <button className="btn ghost sm" title="Delete"
+                    aria-label={`Delete transaction ${t.merchant || t.type} ${t.date}`}
+                    onClick={() => del(t.id)}>
                     <Icon name="trash" size={12} />
                   </button>
                 </div>

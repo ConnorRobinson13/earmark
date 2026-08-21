@@ -54,6 +54,18 @@
   --pad-row:  14px 16px;
   --row-gap:  2px;
   --section-gap: 28px;
+
+  /* Page gutter and the room the bottom nav needs. Both shrink on a phone —
+     see the RESPONSIVE section at the foot of this file, which is the only
+     place that reassigns them. */
+  --gutter: 40px;
+  --dock-clearance: 140px;
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
+
+  /* The smallest a control may be and still be comfortably tappable. Applied
+     on coarse pointers only, so a mouse keeps the tighter desktop density. */
+  --tap: 44px;
 }
 
 /* ─── ACCENT: crimson family ─── */
@@ -63,6 +75,11 @@
 
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
+html {
+  /* Landscape on iOS otherwise inflates body text and nothing else, which
+     pulls every hand-tuned size out of proportion. */
+  -webkit-text-size-adjust: 100%;
+}
 body {
   background: var(--bg);
   color: var(--text);
@@ -72,11 +89,36 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-feature-settings: "ss01", "ss02", "cv11", "tnum";
+  /* A stray element wider than the viewport should not let the whole page
+     slide sideways under the thumb. */
+  overflow-x: hidden;
 }
 button, input, select, textarea { font: inherit; color: inherit; }
 button { background: none; border: none; padding: 0; cursor: pointer; color: inherit; }
+button, a, [role="button"], input, select, textarea { -webkit-tap-highlight-color: transparent; }
 a { color: inherit; text-decoration: none; }
 ::selection { background: var(--accent); color: var(--accent-ink); }
+
+/* Keyboard focus stays visible even where a control paints its own focus ring
+   for the mouse. */
+:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+
+/* Screen-reader-only: keeps a name on a control whose label is hidden by the
+   layout, rather than removing it from the accessibility tree with display:none. */
+.sr-only {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
 
 .num, .tnum { font-family: var(--font-num); font-feature-settings: "tnum"; letter-spacing: -0.01em; }
 html[data-mode="editorial"] .num { font-feature-settings: "lnum","tnum"; font-weight: 400; }
@@ -144,13 +186,13 @@ html[data-mode="editorial"] .num { font-feature-settings: "lnum","tnum"; font-we
 .main-inner {
   max-width: 1240px;
   margin: 0 auto;
-  padding: 28px 40px 140px;
+  padding: 28px var(--gutter) calc(var(--dock-clearance) + var(--safe-b));
 }
 
 /* TOPBAR */
 .topbar {
   display: flex; align-items: center; gap: 16px;
-  padding: 16px 40px;
+  padding: 16px var(--gutter);
   border-bottom: 1px solid var(--border);
   position: sticky; top: 0;
   background: var(--bg-2);
@@ -220,7 +262,7 @@ html[data-mode="editorial"] .num { font-feature-settings: "lnum","tnum"; font-we
 .iconbtn.primary:hover { background: var(--accent-2); }
 
 .btn {
-  display: inline-flex; align-items: center; gap: 8px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   height: 34px; padding: 0 14px;
   background: var(--surface);
   border: 1px solid var(--hairline);
@@ -230,8 +272,15 @@ html[data-mode="editorial"] .num { font-feature-settings: "lnum","tnum"; font-we
   color: var(--text-2);
   transition: all .12s;
   cursor: pointer;
+  /* A button label that wraps turns a 34px control into a 50px one and breaks
+     the row it sits in — every label here is two or three words. */
+  white-space: nowrap;
 }
 .btn:hover { background: var(--surface-2); color: var(--text); border-color: var(--border); }
+.btn:active { transform: translateY(1px); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn:disabled:active { transform: none; }
+.btn .ico { flex: none; }
 .btn.primary {
   background: var(--accent); color: var(--accent-ink); border-color: var(--accent);
   font-weight: 600;
@@ -277,6 +326,20 @@ html[data-mode="editorial"] .num { font-feature-settings: "lnum","tnum"; font-we
   font-size: 13px;
   outline: none;
   transition: border-color .12s, box-shadow .12s;
+  /* iOS renders a date input at its own height and a select with a chrome
+     chevron unless told otherwise, which is what made the two sit a few pixels
+     off every other field in the same form. */
+  -webkit-appearance: none;
+  appearance: none;
+}
+select {
+  /* Room for the chevron drawn below, so a long account name never runs under it. */
+  padding-right: 30px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--text-dim) 50%),
+                    linear-gradient(135deg, var(--text-dim) 50%, transparent 50%);
+  background-position: calc(100% - 15px) center, calc(100% - 10px) center;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
 }
 textarea { height: auto; padding: 10px 12px; }
 .input:focus, input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-fade); }
@@ -446,15 +509,9 @@ textarea { height: auto; padding: 10px 12px; }
 }
 .tomove-row .from-pick {
   height: 30px;
-  padding: 0 8px;
+  padding: 0 24px 0 8px;
   font-size: 12px;
-}
-@media (max-width: 900px) {
-  .tomove-row {
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-  }
-  .tomove-row .arrow, .tomove-row .dest { display: none; }
+  background-position: calc(100% - 13px) center, calc(100% - 8px) center;
 }
 
 /* METRIC GRID */
@@ -614,7 +671,6 @@ textarea { height: auto; padding: 10px 12px; }
   transition: background .1s, border-color .1s;
   cursor: pointer;
 }
-.fund-row:hover .assign-button { border-color: var(--border); background: rgba(0,0,0,.2); }
 
 .fund-row .row-del {
   background: transparent;
@@ -622,11 +678,23 @@ textarea { height: auto; padding: 10px 12px; }
   border: none;
   padding: 4px 6px;
   border-radius: var(--r-sm);
-  opacity: 0;
   transition: opacity .12s, color .12s, background .12s;
+  display: grid; place-items: center;
 }
-.fund-row:hover .row-del { opacity: 1; }
 .fund-row .row-del:hover { color: var(--bad); background: rgba(255,126,126,.08); }
+
+/* Revealed on hover, which is fine for a mouse and invisible on a touch
+   screen — where there is no hover, both stay on. The delete button in
+   particular was drawn at opacity 0 on a phone: present, occupying its cell,
+   and impossible to see. */
+@media (hover: hover) {
+  .fund-row .row-del { opacity: 0; }
+  .fund-row:hover .row-del { opacity: 1; }
+  .fund-row:hover .assign-button { border-color: var(--border); background: rgba(0,0,0,.2); }
+}
+@media (hover: none) {
+  .fund-row .assign-button { border-color: var(--hairline); }
+}
 
 /* Progress bar — minimal, full-width under row */
 .fund-row .progress-track {
@@ -646,7 +714,10 @@ textarea { height: auto; padding: 10px 12px; }
 /* GOAL CARD */
 .goal-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  /* min(280px, 100%) rather than a bare 280px: on a narrow phone the track
+     would otherwise be wider than the column it sits in and push the page
+     sideways. */
+  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
   gap: 14px;
 }
 .goal-card {
@@ -748,10 +819,13 @@ textarea { height: auto; padding: 10px 12px; }
   background: var(--surface-2);
   display: grid; place-items: center;
   color: var(--text-dim);
-  opacity: 0; transition: opacity .12s;
+  transition: opacity .12s;
   border: 1px solid var(--hairline);
 }
-.goal-card:hover .contribute-btn { opacity: 1; }
+@media (hover: hover) {
+  .goal-card .contribute-btn { opacity: 0; }
+  .goal-card:hover .contribute-btn { opacity: 1; }
+}
 .goal-card .contribute-btn:hover { color: var(--accent); border-color: var(--accent); }
 
 /* ============================================================
@@ -901,6 +975,11 @@ textarea { height: auto; padding: 10px 12px; }
   background: rgba(0,0,0,0.65);
   backdrop-filter: blur(4px);
   display: grid; place-items: center;
+  /* A form taller than the window used to be clipped with no way to reach the
+     bottom of it — the backdrop is fixed, so nothing scrolled. The New goal
+     form is taller than a phone in portrait, which made it unusable. */
+  overflow-y: auto;
+  padding: 24px 16px;
   z-index: 100;
   animation: fadein .15s;
 }
@@ -910,7 +989,7 @@ textarea { height: auto; padding: 10px 12px; }
   border: 1px solid var(--border);
   border-radius: var(--r-xl);
   width: 480px;
-  max-width: calc(100vw - 32px);
+  max-width: 100%;
   padding: 28px;
   box-shadow: 0 24px 80px rgba(0,0,0,.6);
   animation: pop .2s;
@@ -927,6 +1006,8 @@ textarea { height: auto; padding: 10px 12px; }
 .modal .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
 .modal .field label { font-size: 11.5px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
 .modal .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
+.modal-head { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+.modal-head h2 { margin: 0; flex: 1; min-width: 0; }
 
 .amount-input {
   font-family: var(--font-display);
@@ -990,6 +1071,8 @@ textarea { height: auto; padding: 10px 12px; }
 .fd-hero .stat .val.bad { color: var(--bad); }
 .fd-hero .stat .val.warn { color: var(--warn); }
 
+.fd-category-input { max-width: 240px; }
+
 .tx-list { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r-lg); overflow: hidden; }
 .tx-row {
   display: grid; grid-template-columns: 80px 1fr 120px;
@@ -1049,7 +1132,7 @@ textarea { height: auto; padding: 10px 12px; }
 /* ============================================================
    ACCOUNTS / SETTINGS
    ============================================================ */
-.acct-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+.acct-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr)); gap: 14px; }
 .acct-card {
   padding: 18px;
   background: var(--surface);
@@ -1140,37 +1223,6 @@ textarea { height: auto; padding: 10px 12px; }
 .uchip .amt { font-family: var(--font-num); font-weight: 600; font-variant-numeric: tabular-nums; }
 .uchip.pos { color: var(--warn); border-color: rgba(240,184,107,.3); }
 .uchip.neg { color: var(--bad); border-color: rgba(255,126,126,.3); }
-
-/* Responsive (mobile) */
-@media (max-width: 900px) {
-  .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
-  .sidebar {
-    height: auto;
-    position: sticky;
-    top: 0;
-    flex-direction: row;
-    align-items: center;
-    padding: 12px 16px;
-    overflow-x: auto;
-    border-right: none;
-    border-bottom: 1px solid var(--hairline);
-    background: rgba(10,10,12,.92);
-    backdrop-filter: blur(12px);
-    z-index: 30;
-    gap: 12px;
-  }
-  .sidebar nav { flex-direction: row; gap: 4px; flex-shrink: 0; }
-  .topbar { padding: 12px 16px; flex-wrap: wrap; }
-  .main-inner { padding: 16px; }
-  .hero { grid-template-columns: 1fr; }
-  .metric-row { grid-template-columns: repeat(2, 1fr); }
-  .metric-row > .cell:nth-child(2) { border-right: none; }
-  .fund-row { grid-template-columns: 1fr 100px 90px 24px; gap: 8px; }
-  .fund-row .col-balance-meta { display: none; }
-  .plan-grid { grid-template-columns: 1fr; }
-  .plan-sticky { position: relative; top: auto; }
-  .fd-hero .stats { grid-template-columns: repeat(2, 1fr); gap: 16px; }
-}
 
 /* ---------- Cash flow ---------- */
 .cf-banner { border-left: 3px solid var(--hairline); line-height: 1.5; }
@@ -1279,6 +1331,10 @@ textarea { height: auto; padding: 10px 12px; }
 }
 .trend-seg { width: 100%; transition: height .2s ease; }
 .trend-total { font-size: 11px; font-variant-numeric: tabular-nums; color: var(--text-dim); margin-top: 4px; }
+/* Six columns of "$1,234.56" do not fit across a phone. Both figures are in
+   the markup and the responsive block at the foot of this file swaps which one
+   shows, so the desktop chart keeps the exact amount. */
+.trend-total.compact { display: none; }
 .trend-label { font-size: 11px; color: var(--text-mute); text-transform: uppercase; letter-spacing: .04em; }
 .trend-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; }
 .trend-key { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-dim); }
@@ -1395,6 +1451,10 @@ textarea { height: auto; padding: 10px 12px; }
 }
 .dock .dockitem.active .ico { opacity: 1; }
 .dock .dockitem.icon-only { padding: 9px 12px; }
+/* Real text, hidden by the layout that has no room for it — the tab bar at
+   the foot of this file turns it back on. Kept out of the desktop dock, where
+   the cog sits alone by design. */
+.dock .dock-label-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .dock .dockitem .badge {
   background: var(--accent-fade); color: var(--accent-2);
   border: 1px solid var(--accent-border);
@@ -1402,7 +1462,334 @@ textarea { height: auto; padding: 10px 12px; }
   padding: 1px 6px; margin-left: 2px; position: relative;
 }
 
-@media (max-width: 900px) {
-  .dock .dockitem span:not(.badge) { display: none; }
-  .dock .dockitem { padding: 10px 12px; }
+/* ============================================================
+   RESPONSIVE
+
+   One place for every width- and pointer-conditional rule, at the foot of the
+   file so it outranks the `[data-mode="ronin"]` overrides above without
+   needing to repeat their specificity for every property.
+
+   Three steps, and each earns its keep:
+     ≤ 1080px  tablet — the two-up hero and the four-up metric strip stop fitting
+     ≤ 720px   phone  — the nav becomes a bottom tab bar and rows stack
+     ≤ 400px   small phone — the last of the horizontal padding comes off
+
+   Plus two pointer queries: `(pointer: coarse)` grows every control to a
+   thumb-sized target regardless of screen width, which is what a tablet and a
+   phone actually have in common.
+   ============================================================ */
+
+/* ---------- ≤1080px: tablet ---------- */
+@media (max-width: 1080px) {
+  :root { --gutter: 24px; }
+
+  .hero { grid-template-columns: 1fr; }
+  .hero-side { grid-template-rows: auto auto; }
+  .metric-row { grid-template-columns: repeat(2, 1fr); }
+  .metric-row > .cell:nth-child(2n) { border-right: none; }
+  .metric-row > .cell:not(:nth-last-child(-n+2)) { border-bottom: 1px solid var(--hairline); }
+
+  .plan-grid { grid-template-columns: 1fr; }
+  .plan-sticky { position: relative; top: auto; }
+  .fd-hero .stats { grid-template-columns: repeat(2, 1fr); gap: 16px 20px; }
+}
+
+/* ---------- ≤720px: phone ---------- */
+@media (max-width: 720px) {
+  :root {
+    --gutter: 16px;
+    --pad-card: 16px;
+    --pad-row: 14px 16px;
+    --section-gap: 22px;
+    /* Tab bar (56px) + its safe-area padding + breathing room. */
+    --dock-clearance: 84px;
+  }
+
+  .main-inner { padding-top: 18px; }
+
+  /* --- top bar ---------------------------------------------------------
+     The month switcher was absolutely centred in the bar, which on a phone
+     laid it straight over the unassigned chip on one side and the quick-add
+     button on the other. Back into the flow, and reordered so the month —
+     the control that changes what every number below it means — leads. */
+  .topbar {
+    gap: 8px;
+    padding: 10px var(--gutter);
+    padding-top: calc(10px + var(--safe-t));
+  }
+  .topbar .monthsw {
+    position: static;
+    transform: none;
+    order: 1;
+    height: 40px;
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+  .topbar .monthsw .label {
+    min-width: 0;
+    padding: 0 10px;
+    font-size: 14px;
+    white-space: nowrap;
+  }
+  .topbar .monthsw .label .archived { display: none; }
+  .topbar .monthsw button { padding: 0 10px; }
+  .topbar .spacer { order: 2; }
+  .topbar .uchip { order: 3; }
+  .topbar .btn { order: 4; }
+  /* "Unassigned $284.50" does not fit beside a month and a button. The dot
+     carries the tone, the title and the aria-label carry the meaning. */
+  .uchip .eyebrow { display: none; }
+  .uchip { padding: 6px 10px; gap: 6px; }
+  /* Quick add keeps its label on a tablet and becomes the plus alone here. */
+  .topbar .btn .btn-label { display: none; }
+  .topbar .btn { padding: 0 12px; }
+
+  /* --- bottom tab bar --------------------------------------------------
+     The floating pill scrolled sideways at this width and sat on top of the
+     home indicator. Edge to edge, five equal targets, labels back on: they
+     were display:none below 900px, which also took them out of the
+     accessibility tree, leaving five unnamed links. */
+  .dock {
+    left: 0; right: 0; bottom: 0;
+    transform: none;
+    width: 100%;
+    max-width: none;
+    overflow: visible;
+    gap: 0;
+    padding: 4px 4px calc(4px + var(--safe-b));
+    border-left: none; border-right: none; border-bottom: none;
+    background: rgba(13,13,15,.96);
+  }
+  .dock .dock-mark, .dock .dock-div { display: none; }
+  .dock .dockitem {
+    flex: 1 1 0;
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
+    padding: 8px 2px;
+    min-height: 52px;
+    font-size: 10px;
+    letter-spacing: 0.01em;
+  }
+  .dock .dockitem.icon-only { padding: 8px 2px; }
+  .dock .dock-label-only {
+    position: static; width: auto; height: auto;
+    overflow: visible; clip-path: none;
+  }
+  .dock .dockitem .ico { width: 20px; height: 20px; }
+  .dock .dockitem.active::after { left: 12px; right: 12px; }
+  /* The count rides the icon rather than pushing the label out of centre. */
+  .dock .dockitem .badge {
+    position: absolute;
+    top: 2px; left: 50%;
+    margin-left: 4px;
+    font-size: 10px;
+    padding: 0 4px;
+  }
+
+  /* --- section headers -------------------------------------------------
+     Title and action on the first line, the explanatory sub on its own. */
+  .sec-head { flex-wrap: wrap; row-gap: 4px; align-items: center; }
+  .sec-head h2 { flex: 1 1 auto; white-space: normal; font-size: clamp(20px, 6.2vw, 26px); }
+  .sec-head .spacer { display: none; }
+  .sec-head .sub { order: 10; flex-basis: 100%; }
+
+  /* --- hero ------------------------------------------------------------ */
+  .hero { gap: 12px; margin-bottom: 18px; }
+  .hero-unassigned { padding: 22px var(--pad-card) 20px; }
+  .hero-unassigned .big-num,
+  [data-mode="ronin"] .hero-unassigned .big-num { font-size: clamp(40px, 13vw, 60px); }
+  .hero-unassigned .sub { max-width: none; }
+  .hero-unassigned .pill-row .btn { flex: 1 1 auto; }
+  .hero-side { gap: 12px; }
+  .hero-tile .num-big { font-size: 26px; }
+  .hero-tile .split-tile { gap: 12px; }
+  .hero-tile .split-tile .num-big { font-size: 22px; }
+
+  /* --- metric strip ---------------------------------------------------- */
+  .metric-row > .cell { padding: 12px 14px; }
+  .metric-row.cols-3 { grid-template-columns: 1fr 1fr; }
+  .metric-row.cols-3 > .cell:first-child {
+    grid-column: 1 / -1;
+    border-right: none;
+    border-bottom: 1px solid var(--hairline);
+  }
+  .metric-row.cols-3 > .cell:nth-child(2) { border-right: 1px solid var(--hairline); border-bottom: none; }
+  .metric-row.cols-3 > .cell:nth-child(3) { border-bottom: none; }
+  .metric-row .val { font-size: 20px; }
+
+  /* --- to-move panel ---------------------------------------------------
+     Goal and amount on one line, then the account picker and the confirm
+     button side by side — the two things a thumb has to hit. */
+  .tomove-row {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "goal amount"
+      "from action";
+    gap: 10px 12px;
+    padding: 12px;
+  }
+  .tomove-row .goal { grid-area: goal; }
+  .tomove-row .amt { grid-area: amount; }
+  .tomove-row .from-pick { grid-area: from; height: 40px; font-size: 13px; }
+  .tomove-row > .btn { grid-area: action; }
+  .tomove-row .arrow { display: none; }
+  .tomove-row .dest { display: none; }
+
+  /* --- fund rows -------------------------------------------------------
+     Four columns squeezed into 360px left the fund name three words deep and
+     the figures unreadable. Name and delete on the first line, the three
+     figures on the second, each under its own label. */
+  .fund-row {
+    grid-template-columns: 1fr 1fr auto;
+    grid-template-areas:
+      "name  name  del"
+      "assigned spent balance";
+    gap: 10px 12px;
+    padding: 14px 16px 16px;
+    align-items: end;
+  }
+  .fund-row .col-name { grid-area: name; }
+  .fund-row .col-assigned { grid-area: assigned; }
+  .fund-row .col-balance-meta { grid-area: spent; }
+  .fund-row .col-balance { grid-area: balance; }
+  .fund-row .row-del { grid-area: del; align-self: start; padding: 6px; }
+  .fund-row .right { text-align: left; }
+  .fund-row .col-balance { text-align: right; }
+  .fund-row .assign-button,
+  .fund-row .assign-edit { text-align: left; padding: 4px 8px; margin-left: -8px; width: calc(100% + 8px); }
+
+  /* --- goal cards ------------------------------------------------------ */
+  .goal-card .amount-row .big { font-size: 26px; }
+  .goal-card .name { font-size: 18px; }
+
+  /* --- inbox ----------------------------------------------------------- */
+  .inbox-wrap { max-width: none; }
+  .txcard { padding: 24px 18px 20px; }
+  .txcard .merchant-row { gap: 12px; margin-bottom: 16px; }
+  .txcard .mlogo { width: 40px; height: 40px; font-size: 17px; }
+  .txcard .merchant-info .name { font-size: clamp(19px, 5.6vw, 26px); }
+  .txcard .amount {
+    font-size: clamp(38px, 13.5vw, 72px);
+    margin: 4px 0 18px;
+    white-space: nowrap;
+  }
+  /* An inner scroll region inside a scrolling page is a trap for a thumb —
+     the pills are few enough to simply lay out. */
+  .fund-picker { max-height: none; overflow: visible; }
+  .fund-picker.compact { max-height: 168px; overflow-y: auto; }
+  .inbox-empty { padding: 56px 16px; }
+
+  /* --- modals become sheets --------------------------------------------
+     Anchored to the bottom, full width, and scrolling inside themselves, so
+     a long form is thumb-reachable instead of centred and clipped. */
+  .modal-backdrop { place-items: end center; padding: 0; }
+  .modal {
+    width: 100%;
+    max-height: 94vh;
+    max-height: 94dvh;
+    overflow-y: auto;
+    padding: 14px 16px calc(18px + var(--safe-b));
+    border-left: none; border-right: none; border-bottom: none;
+    animation: sheet .22s cubic-bezier(.2,.8,.3,1);
+  }
+  .modal::before {
+    content: "";
+    display: block;
+    width: 36px; height: 4px;
+    margin: 0 auto 14px;
+    background: var(--border-2);
+    border-radius: 99px;
+  }
+  .modal h2 { font-size: clamp(20px, 6vw, 26px); }
+  .modal .actions { margin-top: 14px; }
+  .modal .actions .btn { flex: 1; }
+  .amount-input { font-size: clamp(34px, 11vw, 52px); }
+
+  /* --- fund detail ----------------------------------------------------- */
+  .fd-hero { padding: 20px var(--pad-card); }
+  .fd-hero h1 { font-size: clamp(24px, 7.5vw, 38px); }
+  .fd-hero .stat .val { font-size: 22px; }
+  .fd-category-input { max-width: none; }
+  .tx-row {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "date   amount"
+      "merch  amount";
+    gap: 2px 12px;
+    padding: 12px 14px;
+  }
+  .tx-row .date { grid-area: date; }
+  .tx-row .merchant { grid-area: merch; }
+  .tx-row > .row { grid-area: amount; align-self: center; }
+
+  /* --- charts ---------------------------------------------------------- */
+  .trend-bars { height: 150px; gap: 7px; }
+  .trend-total.full { display: none; }
+  .trend-total.compact { display: block; }
+  .trend-legend { gap: 8px 12px; }
+
+  /* --- net worth ------------------------------------------------------- */
+  .runway-card { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .runway-num { text-align: left; }
+  /* A seven-figure projection at 52px runs off the side of a phone. */
+  .plan-sticky { padding: 18px 16px; }
+  .plan-sticky .big { font-size: clamp(30px, 9.2vw, 52px); }
+
+  /* --- settings -------------------------------------------------------- */
+  .acct-card .bal { font-size: 20px; }
+}
+
+/* ---------- ≤400px: small phone ---------- */
+@media (max-width: 400px) {
+  :root { --gutter: 12px; }
+  .topbar { gap: 6px; }
+  .topbar .monthsw .label { font-size: 13px; padding: 0 6px; }
+  .dock .dockitem { font-size: 9.5px; }
+  .fd-hero .stats { gap: 14px; }
+  .metric-row.cols-3 { grid-template-columns: 1fr; }
+  .metric-row.cols-3 > .cell:nth-child(2) { border-right: none; border-bottom: 1px solid var(--hairline); }
+}
+
+/* ---------- coarse pointer: thumb-sized targets ----------
+   Width says how much room there is; this says what is doing the pointing.
+   A 28px button is fine under a mouse and a coin toss under a thumb. */
+@media (pointer: coarse) {
+  .btn { min-height: var(--tap); padding: 0 16px; }
+  .btn.sm { min-height: 40px; padding: 0 12px; font-size: 13px; }
+  .btn.lg { min-height: 48px; }
+  .iconbtn { width: var(--tap); height: var(--tap); }
+  .monthsw { height: 44px; }
+  .monthsw button { min-width: 44px; }
+
+  /* 16px is the threshold below which iOS Safari zooms the page on focus,
+     and it never zooms back out. Every field in the app was 13px. */
+  .input, input[type=text], input[type=date], input[type=number],
+  input:not([type]), select, textarea {
+    font-size: 16px;
+    min-height: var(--tap);
+  }
+  .modal .field input, .modal .field select { min-height: 46px; }
+  /* The quick-add amount is the one field that is a headline, not a form
+     input. It carries no `type`, so the 16px rule above would otherwise
+     shrink it to the size of the merchant field beneath it. */
+  input.amount-input { font-size: clamp(34px, 11vw, 52px); min-height: 0; }
+  .fund-row .assign-edit, .fund-row .assign-button { min-height: 40px; font-size: 16px; }
+  .acct-type-select { min-height: 0; font-size: 10.5px; }
+  .tomove-row .from-pick { font-size: 14px; }
+  .fund-pill { padding: 9px 14px; font-size: 13px; }
+  .type-toggle button { padding: 10px 14px; font-size: 13px; }
+  .goal-card .contribute-btn { width: 32px; height: 32px; }
+  .cf-toggle { min-height: 40px; }
+
+  /* A 4px track and a 16px thumb are a fiddly drag; both grow. */
+  .proj-slider { height: 6px; padding: 12px 0; background-clip: content-box; }
+  .proj-slider::-webkit-slider-thumb { width: 24px; height: 24px; }
+  .proj-slider::-moz-range-thumb { width: 24px; height: 24px; }
+  input[type=checkbox] { width: 22px; height: 22px; min-height: 0; }
+}
+
+@keyframes sheet {
+  from { transform: translateY(18px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
 }
