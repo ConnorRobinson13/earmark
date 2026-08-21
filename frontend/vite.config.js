@@ -27,6 +27,9 @@ export default defineConfig({
     environment: 'jsdom',
     // Testing Library hooks its between-test cleanup onto the global afterEach.
     globals: true,
+    // Node's own Web Storage globals shadow jsdom's and are inert without a
+    // CLI flag; this puts a real one back. See the file for the whole story.
+    setupFiles: ['./src/test/setup.js'],
   },
   server: {
     port: 5173,

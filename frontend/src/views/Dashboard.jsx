@@ -6,9 +6,10 @@ import ErrorCard from '../components/ErrorCard'
 import GoalSummary, { goalProgress } from '../components/GoalSummary'
 import InlineAssigned from '../components/InlineAssigned'
 import { thisMonth, shiftMonth } from '../components/MonthSelector'
-import { monthLabel, monthShort } from '../format'
+import { compactMoney, monthLabel, monthShort } from '../format'
 import { isGoal, isOperational } from '../funds'
 import { Icon } from '../components/Icons'
+import Modal from '../components/Modal'
 import ToMovePanel from '../components/ToMovePanel'
 
 export default function Dashboard() {
@@ -93,8 +94,12 @@ export default function Dashboard() {
 
       <ToMovePanel month={month} accounts={accounts} />
 
-      {/* ─── SECONDARY METRICS ─── */}
-      <div className="metric-row" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+      {/* ─── SECONDARY METRICS ───
+          The column count is a class rather than an inline style because an
+          inline `grid-template-columns` outranks every media query: the strip
+          stayed three-up on a 390px screen, which is where "Income · plan vs
+          actual" wrapped to four lines. */}
+      <div className="metric-row cols-3">
         <div className="cell">
           <div className="lbl">Income · plan vs actual</div>
           <PlannedIncomeCell
@@ -122,7 +127,7 @@ export default function Dashboard() {
       {/* ─── FUNDS BY CATEGORY ─── */}
       <div className="sec-head">
         <h2>Funds</h2>
-        <span className="sub">grouped by category · click to drill in</span>
+        <span className="sub">grouped by category · open one to drill in</span>
         <div className="spacer" />
         {isPast && <span style={{ fontSize: 12, color: 'var(--warn)' }}>read-only archive</span>}
         <button className="btn sm" onClick={() => setShowNew(true)}>
@@ -222,7 +227,11 @@ function SpendingTrends() {
                     )
                   })}
                 </div>
-                <div className="trend-total">{total > 0 ? fmt(total) : '—'}</div>
+                {/* Both figures ride in the markup and the stylesheet picks
+                    one: the exact amount where there is room for it, the
+                    rounded one on a phone. */}
+                <div className="trend-total full">{total > 0 ? fmt(total) : '—'}</div>
+                <div className="trend-total compact" aria-hidden="true">{total > 0 ? compactMoney(total) : '—'}</div>
                 <div className="trend-label">{monthShort(m.month)}</div>
               </div>
             )
@@ -249,13 +258,15 @@ function FundRow({ fund, month, readOnly, onClick }) {
   const tone = balance < 0 ? 'over' : pct > 90 ? 'warn' : 'ok'
 
   return (
+    // Every cell is named, so the phone layout can re-place them into two
+    // lines with grid areas instead of squeezing four columns into 360px.
     <div className="fund-row" onClick={onClick}>
-      <div>
+      <div className="col-name">
         <div className="name">{fund.name}</div>
         {fund.target && <div className="meta">target {fmt(fund.target)}</div>}
       </div>
 
-      <div className="right" onClick={(e) => e.stopPropagation()}>
+      <div className="right col-assigned" onClick={(e) => e.stopPropagation()}>
         <div className="col-lbl">assigned</div>
         <InlineAssigned fund={fund} month={month} readOnly={readOnly} />
       </div>
@@ -265,7 +276,7 @@ function FundRow({ fund, month, readOnly, onClick }) {
         <div className="assigned" style={{ color: 'var(--text-dim)' }}>{fmt(spent)}</div>
       </div>
 
-      <div className="right">
+      <div className="right col-balance">
         <div className="col-lbl">balance</div>
         <div className={`balance ${balance < 0 ? 'bad' : (available > 0 && balance < available * 0.1 ? 'warn' : '')}`}>
           {fmt(balance)}
@@ -274,6 +285,7 @@ function FundRow({ fund, month, readOnly, onClick }) {
 
       <button
         className="row-del"
+        aria-label={`Delete ${fund.name}`}
         title="Delete fund this month forward"
         onClick={async (e) => {
           e.stopPropagation()
@@ -441,35 +453,32 @@ function NewFundModal({ onClose, onCreated, existingCategories }) {
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <form className="modal" onClick={e => e.stopPropagation()} onSubmit={submit}>
-        <h2>New fund</h2>
-        <div className="field">
-          <label>Name</label>
-          <input autoFocus placeholder="e.g. Groceries" value={name} onChange={e => setName(e.target.value)} />
-        </div>
-        <div className="field">
-          <label>Target (optional)</label>
-          <input inputMode="decimal" value={target} onChange={e => setTarget(e.target.value)} />
-        </div>
-        <div className="field">
-          <label>Category</label>
-          <input
-            list="category-list"
-            placeholder="e.g. Housing"
-            value={category}
-            onChange={e => setCategory(e.target.value)}
-          />
-          <datalist id="category-list">
-            {existingCategories.map(c => <option key={c} value={c} />)}
-          </datalist>
-        </div>
-        {err && <div className="bad small">{err}</div>}
-        <div className="actions">
-          <button type="button" className="btn ghost" onClick={onClose}>Cancel</button>
-          <button className="btn primary" disabled={busy}>{busy ? 'Adding…' : 'Add fund'}</button>
-        </div>
-      </form>
-    </div>
+    <Modal title="New fund" onClose={onClose} onSubmit={submit}>
+      <div className="field">
+        <label>Name</label>
+        <input autoFocus placeholder="e.g. Groceries" value={name} onChange={e => setName(e.target.value)} />
+      </div>
+      <div className="field">
+        <label>Target (optional)</label>
+        <input inputMode="decimal" value={target} onChange={e => setTarget(e.target.value)} />
+      </div>
+      <div className="field">
+        <label>Category</label>
+        <input
+          list="category-list"
+          placeholder="e.g. Housing"
+          value={category}
+          onChange={e => setCategory(e.target.value)}
+        />
+        <datalist id="category-list">
+          {existingCategories.map(c => <option key={c} value={c} />)}
+        </datalist>
+      </div>
+      {err && <div className="bad small">{err}</div>}
+      <div className="actions">
+        <button type="button" className="btn ghost" onClick={onClose}>Cancel</button>
+        <button className="btn primary" disabled={busy}>{busy ? 'Adding…' : 'Add fund'}</button>
+      </div>
+    </Modal>
   )
 }

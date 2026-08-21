@@ -49,3 +49,25 @@ export function dateLabel(dateStr) {
   const [y, m, d] = dateStr.split('-').map(Number)
   return `${MONTHS[m - 1]} ${d}, ${y}`
 }
+
+/**
+ * "$2.9k" · "$845" · "$1.2m". A money figure short enough for a chart axis on
+ * a phone, where six columns of "$1,234.56" have about 50px each.
+ *
+ * Only ever a label: the exact figure is in the markup beside it and is what
+ * a wider screen shows. Rounding here is a rendering decision, not an
+ * accounting one — nothing adds these up.
+ */
+export function compactMoney(n) {
+  const v = Number(n || 0)
+  const abs = Math.abs(v)
+  const sign = v < 0 ? '−' : ''
+  if (abs >= 1_000_000) return `${sign}$${trimZero(abs / 1_000_000)}m`
+  if (abs >= 1_000) return `${sign}$${trimZero(abs / 1_000)}k`
+  return `${sign}$${Math.round(abs)}`
+}
+
+/** 2.0 → "2", 2.94 → "2.9". One decimal, and none when it says nothing. */
+function trimZero(v) {
+  return v.toFixed(1).replace(/\.0$/, '')
+}

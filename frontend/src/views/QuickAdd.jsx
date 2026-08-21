@@ -4,7 +4,7 @@ import { api } from '../api'
 import { keys, useInvalidate, useResource, writes } from '../resource'
 import ErrorCard from '../components/ErrorCard'
 import { dateInMonth } from '../components/MonthSelector'
-import { Icon } from '../components/Icons'
+import Modal from '../components/Modal'
 
 export default function QuickAdd() {
   const { month } = useOutletContext()
@@ -72,67 +72,67 @@ export default function QuickAdd() {
   function close() { nav('/') }
 
   return (
-    <div className="modal-backdrop" onClick={close}>
-      <form className="modal" onClick={e => e.stopPropagation()} onSubmit={submit}>
-        <div className="row" style={{ marginBottom: 12 }}>
-          <h2 style={{ flex: 1, margin: 0 }}>Quick add</h2>
-          <div className="type-toggle">
-            <button type="button" className={type === 'expense' ? 'active' : ''} onClick={() => setType('expense')}>− Expense</button>
-            <button type="button" className={type === 'income' ? 'active' : ''} onClick={() => setType('income')}>+ Income</button>
-          </div>
+    <Modal
+      title="Quick add"
+      onClose={close}
+      onSubmit={submit}
+      action={
+        <div className="type-toggle">
+          <button type="button" className={type === 'expense' ? 'active' : ''} onClick={() => setType('expense')}>− Expense</button>
+          <button type="button" className={type === 'income' ? 'active' : ''} onClick={() => setType('income')}>+ Income</button>
         </div>
+      }
+    >
+      <div className="field">
+        <label>Amount</label>
+        <input
+          ref={amountRef}
+          className="amount-input"
+          inputMode="decimal"
+          placeholder="0.00"
+          value={amount}
+          onChange={e => setAmount(e.target.value)}
+        />
+      </div>
 
-        <div className="field">
-          <label>Amount</label>
-          <input
-            ref={amountRef}
-            className="amount-input"
-            inputMode="decimal"
-            placeholder="0.00"
-            value={amount}
-            onChange={e => setAmount(e.target.value)}
-          />
+      <div className="field">
+        <label>Merchant / source</label>
+        <input value={merchant} onChange={e => setMerchant(e.target.value)} placeholder="e.g. Trader Joe's" />
+      </div>
+
+      <div className="field">
+        <label>Fund</label>
+        <div className="fund-picker compact">
+          {funds.map(f => (
+            <button
+              key={f.id}
+              type="button"
+              className={`fund-pill ${String(f.id) === fundId ? 'selected' : ''}`}
+              onClick={() => { setFundId(String(f.id)); setSuggestSrc('') }}
+            >
+              {f.name}
+            </button>
+          ))}
         </div>
+        {suggestSrc && (
+          <div className="small muted">Auto-picked via {suggestSrc}</div>
+        )}
+      </div>
 
-        <div className="field">
-          <label>Merchant / source</label>
-          <input value={merchant} onChange={e => setMerchant(e.target.value)} placeholder="e.g. Trader Joe's" />
-        </div>
+      <div className="field">
+        <label>Date</label>
+        <input type="date" value={date} onChange={e => setDate(e.target.value)} />
+      </div>
 
-        <div className="field">
-          <label>Fund</label>
-          <div className="fund-picker" style={{ maxHeight: 120 }}>
-            {funds.map(f => (
-              <button
-                key={f.id}
-                type="button"
-                className={`fund-pill ${String(f.id) === fundId ? 'selected' : ''}`}
-                onClick={() => { setFundId(String(f.id)); setSuggestSrc('') }}
-              >
-                {f.name}
-              </button>
-            ))}
-          </div>
-          {suggestSrc && (
-            <div className="small muted">Auto-picked via {suggestSrc}</div>
-          )}
-        </div>
+      {err && <div className="bad small">{err}</div>}
+      {fundsRes.error && <ErrorCard error={fundsRes.error} />}
 
-        <div className="field">
-          <label>Date</label>
-          <input type="date" value={date} onChange={e => setDate(e.target.value)} />
-        </div>
-
-        {err && <div className="bad small">{err}</div>}
-        {fundsRes.error && <ErrorCard error={fundsRes.error} />}
-
-        <div className="actions">
-          <button type="button" className="btn ghost" onClick={close}>Cancel</button>
-          <button className="btn primary" disabled={busy || !fundId || !Number(amount)}>
-            {busy ? 'Saving…' : 'Save'}
-          </button>
-        </div>
-      </form>
-    </div>
+      <div className="actions">
+        <button type="button" className="btn ghost" onClick={close}>Cancel</button>
+        <button className="btn primary" disabled={busy || !fundId || !Number(amount)}>
+          {busy ? 'Saving…' : 'Save'}
+        </button>
+      </div>
+    </Modal>
   )
 }

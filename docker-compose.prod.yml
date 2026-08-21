@@ -1,0 +1,88 @@
+# Production stack. Standalone — run it on its own, not as an overlay:
+#
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# It is a separate file rather than a `-f base -f overlay` merge because
+# Compose merges list fields additively: an overlay can add a published port
+# but cannot take one away without `!reset`, and "the dev port is still open in
+# production" is not a mistake worth leaving available.
+#
+# The differences from docker-compose.yml, and the reason for each:
+#   - no bind mounts, no --reload — the image is the artifact, not the checkout
+#   - only nginx publishes, and only on 127.0.0.1 — `tailscale serve` is the
+#     single front door, so nothing is reachable off-box without the tailnet
+#   - every secret comes from the environment; this file is in a public repo
+#   - no `mcp` service: hermes reads the finances over the backend's own GET
+#     endpoints, so there is no second definition of what the numbers mean
+
+name: earmark
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: budget
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+      POSTGRES_DB: budget
+    # Deliberately unpublished. Backups and psql both go through `docker exec`,
+    # so nothing outside the compose network ever needs to dial the database.
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U budget"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+psycopg://budget:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}@postgres:5432/budget
+      ENABLE_SCHEDULER: "1"   # daily Plaid sync at 06:00 — see app/main.py
+      TZ: ${TZ:-America/Chicago}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      PLAID_CLIENT_ID: ${PLAID_CLIENT_ID:-}
+      PLAID_SECRET: ${PLAID_SECRET:-}
+      PLAID_ENV: ${PLAID_ENV:-sandbox}
+      # OLLAMA_URL is intentionally absent. Nothing serves embeddings here, and
+      # services/embeddings.py already treats an unreachable model as "no
+      # suggestion" rather than an error, so leaving it unset degrades
+      # suggest_fund() to manual categorisation instead of failing a write.
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    restart: unless-stopped
+    # The only published port in the stack, and loopback-only: `tailscale serve`
+    # proxies 443 on the tailnet to this. Binding 0.0.0.0 here would put an
+    # unauthenticated view of the finances on hermes' public interface.
+    ports:
+      - "127.0.0.1:${EARMARK_HTTP_PORT:-8088}:80"
+    depends_on:
+      backend:
+        condition: service_started
+    healthcheck:
+      # 127.0.0.1, not localhost: nginx listens on IPv4 only, and `localhost`
+      # resolves to ::1 first inside the container, so the probe was reporting
+      # the whole web tier unhealthy while it served traffic normally.
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  postgres_data:

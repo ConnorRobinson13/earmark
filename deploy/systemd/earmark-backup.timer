@@ -1,0 +1,14 @@
+[Unit]
+Description=Nightly Earmark backup
+
+[Timer]
+# 06:30, half an hour after the app's own 06:00 Plaid sync, so the dump
+# contains the day's transactions rather than missing them by minutes.
+OnCalendar=*-*-* 06:30:00
+# The desktop is not always on and hermes is not always up at 06:30; without
+# this a missed window is simply skipped until tomorrow.
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

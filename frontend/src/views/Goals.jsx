@@ -7,6 +7,7 @@ import GoalSummary, { goalProgress } from '../components/GoalSummary'
 import { dateInMonth, thisMonth } from '../components/MonthSelector'
 import { isGoal } from '../funds'
 import { Icon } from '../components/Icons'
+import Modal from '../components/Modal'
 
 export default function Goals() {
   const { month } = useOutletContext()
@@ -307,72 +308,69 @@ function NewGoalModal({ accounts, onClose, onCreated }) {
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <form className="modal" onClick={e => e.stopPropagation()} onSubmit={submit}>
-        <h2>New goal</h2>
+    <Modal title="New goal" onClose={onClose} onSubmit={submit}>
+      <div className="field">
+        <label>Goal type</label>
+        <div className="type-toggle" style={{ display: 'flex' }}>
+          <button type="button" className={goalType === 'savings' ? 'active' : ''} onClick={() => setGoalType('savings')}>
+            Savings
+          </button>
+          <button type="button" className={isContribution ? 'active' : ''} onClick={() => setGoalType('contribution')}>
+            Contribution
+          </button>
+          <button type="button" className={isDebt ? 'active' : ''} onClick={() => setGoalType('debt')}>
+            Debt
+          </button>
+        </div>
+        <div className="small muted">
+          {isContribution
+            ? 'Tracks total contributed in the target year (Roth, HSA, 401k). Progress = sum of settlements within that calendar year.'
+            : isDebt
+            ? 'Tracks a balance you owe (car loan, student loan). Starts at the amount owed and counts DOWN as you add payments.'
+            : 'Tracks a balance you want to hit (emergency fund, down payment, trip). Progress = current balance.'}
+        </div>
+      </div>
+      <div className="field">
+        <label>Name</label>
+        <input autoFocus placeholder={isContribution ? 'e.g. Roth IRA 2026' : isDebt ? 'e.g. Car loan' : 'e.g. Emergency fund'} value={name} onChange={e => setName(e.target.value)} />
+      </div>
+      <div className="field">
+        <label>{isContribution ? 'Annual contribution target' : isDebt ? 'Amount owed' : 'Target amount'}</label>
+        <input inputMode="decimal" placeholder={isContribution ? 'e.g. 7000' : isDebt ? 'e.g. 22000' : ''} value={target} onChange={e => setTarget(e.target.value.replace(/-/g, ''))} />
+      </div>
+      <div className="field">
+        <label>{isContribution ? 'Deadline (e.g. Dec 31 of tax year)' : isDebt ? 'Payoff target date (optional)' : 'Target date (optional)'}</label>
+        <input type="date" value={targetDate} onChange={e => setTargetDate(e.target.value)} />
+      </div>
+      {isDebt && (
         <div className="field">
-          <label>Goal type</label>
-          <div className="type-toggle" style={{ display: 'flex' }}>
-            <button type="button" className={goalType === 'savings' ? 'active' : ''} onClick={() => setGoalType('savings')}>
-              Savings
-            </button>
-            <button type="button" className={isContribution ? 'active' : ''} onClick={() => setGoalType('contribution')}>
-              Contribution
-            </button>
-            <button type="button" className={isDebt ? 'active' : ''} onClick={() => setGoalType('debt')}>
-              Debt
-            </button>
-          </div>
-          <div className="small muted">
-            {isContribution
-              ? 'Tracks total contributed in the target year (Roth, HSA, 401k). Progress = sum of settlements within that calendar year.'
-              : isDebt
-              ? 'Tracks a balance you owe (car loan, student loan). Starts at the amount owed and counts DOWN as you add payments.'
-              : 'Tracks a balance you want to hit (emergency fund, down payment, trip). Progress = current balance.'}
-          </div>
+          <label>Monthly payment (optional)</label>
+          <input inputMode="decimal" placeholder="e.g. 531" value={minPayment}
+            onChange={e => setMinPayment(e.target.value.replace(/-/g, ''))} />
+          <div className="small muted">The lender's fixed payment (incl. interest). If blank, we estimate it from the payoff date.</div>
         </div>
+      )}
+      {!isContribution && !isDebt && (
         <div className="field">
-          <label>Name</label>
-          <input autoFocus placeholder={isContribution ? 'e.g. Roth IRA 2026' : isDebt ? 'e.g. Car loan' : 'e.g. Emergency fund'} value={name} onChange={e => setName(e.target.value)} />
+          <label>Starting balance (optional)</label>
+          <input inputMode="decimal" value={startingBalance}
+            onChange={e => setStartingBalance(e.target.value.replace(/-/g, ''))} />
         </div>
+      )}
+      {!isDebt && (
         <div className="field">
-          <label>{isContribution ? 'Annual contribution target' : isDebt ? 'Amount owed' : 'Target amount'}</label>
-          <input inputMode="decimal" placeholder={isContribution ? 'e.g. 7000' : isDebt ? 'e.g. 22000' : ''} value={target} onChange={e => setTarget(e.target.value.replace(/-/g, ''))} />
+          <label>Backed by account (optional)</label>
+          <select value={accountId} onChange={e => setAccountId(e.target.value)}>
+            <option value="">None</option>
+            {accounts.map(a => <option key={a.id} value={a.id}>{a.name} ({a.type})</option>)}
+          </select>
         </div>
-        <div className="field">
-          <label>{isContribution ? 'Deadline (e.g. Dec 31 of tax year)' : isDebt ? 'Payoff target date (optional)' : 'Target date (optional)'}</label>
-          <input type="date" value={targetDate} onChange={e => setTargetDate(e.target.value)} />
-        </div>
-        {isDebt && (
-          <div className="field">
-            <label>Monthly payment (optional)</label>
-            <input inputMode="decimal" placeholder="e.g. 531" value={minPayment}
-              onChange={e => setMinPayment(e.target.value.replace(/-/g, ''))} />
-            <div className="small muted">The lender's fixed payment (incl. interest). If blank, we estimate it from the payoff date.</div>
-          </div>
-        )}
-        {!isContribution && !isDebt && (
-          <div className="field">
-            <label>Starting balance (optional)</label>
-            <input inputMode="decimal" value={startingBalance}
-              onChange={e => setStartingBalance(e.target.value.replace(/-/g, ''))} />
-          </div>
-        )}
-        {!isDebt && (
-          <div className="field">
-            <label>Backed by account (optional)</label>
-            <select value={accountId} onChange={e => setAccountId(e.target.value)}>
-              <option value="">None</option>
-              {accounts.map(a => <option key={a.id} value={a.id}>{a.name} ({a.type})</option>)}
-            </select>
-          </div>
-        )}
-        {err && <div className="bad small">{err}</div>}
-        <div className="actions">
-          <button type="button" className="btn ghost" onClick={onClose}>Cancel</button>
-          <button className="btn primary" disabled={busy}>{busy ? 'Creating…' : 'Create goal'}</button>
-        </div>
-      </form>
-    </div>
+      )}
+      {err && <div className="bad small">{err}</div>}
+      <div className="actions">
+        <button type="button" className="btn ghost" onClick={onClose}>Cancel</button>
+        <button className="btn primary" disabled={busy}>{busy ? 'Creating…' : 'Create goal'}</button>
+      </div>
+    </Modal>
   )
 }

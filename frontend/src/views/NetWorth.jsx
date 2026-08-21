@@ -155,8 +155,10 @@ export default function NetWorth() {
         <span className="sub">current position + retirement projection</span>
       </div>
 
-      {/* Hero */}
-      <div className="hero" style={{ gridTemplateColumns: '1.4fr 1fr' }}>
+      {/* Hero. The column split is the stylesheet's — spelling it inline here
+          pinned the hero at two columns on a phone, because an inline style
+          outranks the media query that stacks it. */}
+      <div className="hero">
         <div className="hero-unassigned">
           <div className="label-row">
             <span className="eyebrow">Total net worth · today</span>
@@ -322,6 +324,7 @@ function ProjInput({ label, value, min, max, step, suffix, onChange, formatValue
       </div>
       <input
         type="range"
+        aria-label={label}
         min={min} max={max} step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
@@ -395,9 +398,14 @@ function NetWorthTrend({ history }) {
           {change >= 0 ? '▲' : '▼'} {fmt(Math.abs(change))} since {monthShortYear(pts[0].month)}
         </span>
       </div>
-      <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
+      {/* preserveAspectRatio="none" stretches the drawing to whatever width it
+          is given, which on a phone squeezed a 640-wide box into 360 and took
+          the stroke with it. non-scaling-stroke keeps the line 2px however far
+          the box is squashed. */}
+      <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none"
+        role="img" aria-label={`Net worth from ${monthShortYear(pts[0].month)} to ${monthShortYear(pts[pts.length - 1].month)}, now ${fmt(last)}`}>
         <path d={area} fill="var(--accent)" opacity="0.12" />
-        <path d={line} fill="none" stroke="var(--accent)" strokeWidth="2" />
+        <path d={line} fill="none" stroke="var(--accent)" strokeWidth="2" vectorEffect="non-scaling-stroke" />
       </svg>
       <div className="row" style={{ justifyContent: 'space-between' }}>
         <span className="muted small">{monthShortYear(pts[0].month)}</span>
@@ -487,9 +495,10 @@ function ProjChart({ series, startAge }) {
   const areaPath = `${linePath} L ${points[points.length - 1][0]},${h - pad} L ${pad},${h - pad} Z`
 
   return (
-    <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} style={{ marginTop: 12 }}>
+    <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} style={{ marginTop: 12 }}
+      role="img" aria-label={`Projected balance from age ${startAge} to ${startAge + series.length - 1}`}>
       <path d={areaPath} fill="var(--accent)" opacity="0.12" />
-      <path d={linePath} fill="none" stroke="var(--accent)" strokeWidth="2" />
+      <path d={linePath} fill="none" stroke="var(--accent)" strokeWidth="2" vectorEffect="non-scaling-stroke" />
       <text x={pad} y={h - 2} fontSize="9" fill="var(--text-mute)">
         age {startAge}
       </text>

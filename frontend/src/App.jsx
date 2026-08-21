@@ -66,7 +66,7 @@ function NavDock() {
     { to: '/networth', label: 'Net worth', icon: 'spark' },
   ]
   return (
-    <nav className="dock">
+    <nav className="dock" aria-label="Main">
       <img className="dock-mark" src="/assets/ronin-logomark-light.png" alt="Ronin Systems" />
       <span className="dock-div" />
       {items.map(it => (
@@ -75,14 +75,20 @@ function NavDock() {
         >
           <Icon name={it.icon} />
           <span>{it.label}</span>
-          {it.badge ? <span className="badge">{it.badge}</span> : null}
+          {it.badge
+            ? <span className="badge" aria-label={`${it.badge} pending`}>{it.badge}</span>
+            : null}
         </NavLink>
       ))}
       <span className="dock-div" />
-      <NavLink to="/settings" aria-label="Settings"
+      {/* The label is drawn on the phone tab bar and hidden on the desktop
+          dock, where the cog sits alone — so it is real text either way,
+          not an aria-label standing in for text that CSS removed. */}
+      <NavLink to="/settings"
         className={({ isActive }) => `dockitem icon-only ${isActive ? 'active' : ''}`}
       >
         <Icon name="cog" />
+        <span className="dock-label-only">Settings</span>
       </NavLink>
     </nav>
   )
@@ -103,7 +109,11 @@ function Topbar({ month, setMonth }) {
   return (
     <div className="topbar">
       {showChip ? (
-        <div className={`uchip ${tone}`} title="Money left to assign this month">
+        // The eyebrow is the phone layout's first casualty — there is no room
+        // for it beside a month and two buttons — so the label the chip is
+        // read out by lives here rather than in the text.
+        <div className={`uchip ${tone}`} title="Money left to assign this month"
+          aria-label={`Unassigned this month: ${fmt(u)}`}>
           <span className="dot" />
           <span className="eyebrow">Unassigned</span>
           <span className="amt">{fmt(u)}</span>
@@ -114,16 +124,19 @@ function Topbar({ month, setMonth }) {
         <button onClick={() => setMonth(shiftMonth(month, -1))} aria-label="Previous month">
           <Icon name="chev_l" />
         </button>
-        <div className="label" onClick={() => setMonth(thisMonth())} title="Jump to current month">
+        <button type="button" className="label" onClick={() => setMonth(thisMonth())} title="Jump to current month">
           {monthLabel(month)}
           {!isCurrent && <span className="archived">archived</span>}
-        </div>
+        </button>
         <button onClick={() => setMonth(shiftMonth(month, 1))} aria-label="Next month">
           <Icon name="chev_r" />
         </button>
       </div>
-      <button className="btn sm primary" title="Quick add (n)" onClick={() => nav('/quick-add')}>
-        <Icon name="plus" /> Quick add
+      {/* Label off, plus sign on, below 720px — so the accessible name is
+          spelled out here instead of being whatever survived the layout. */}
+      <button className="btn sm primary" title="Quick add (n)" aria-label="Quick add"
+        onClick={() => nav('/quick-add')}>
+        <Icon name="plus" /> <span className="btn-label">Quick add</span>
       </button>
     </div>
   )

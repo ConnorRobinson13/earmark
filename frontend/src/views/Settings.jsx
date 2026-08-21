@@ -5,6 +5,7 @@ import ErrorCard from '../components/ErrorCard'
 import { relativeTime } from '../format'
 import { isGoal } from '../funds'
 import { Icon } from '../components/Icons'
+import Modal from '../components/Modal'
 import PlaidConnect, { LinkedItems } from '../components/PlaidConnect'
 
 export default function Settings() {
@@ -231,34 +232,31 @@ function AddAccountModal({ onClose, onAdded }) {
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <form className="modal" onClick={e => e.stopPropagation()} onSubmit={submit}>
-        <h2>Add account</h2>
-        <div className="field">
-          <label>Name</label>
-          <input autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Chase Checking" />
-        </div>
-        <div className="field">
-          <label>Type</label>
-          <select value={type} onChange={e => setType(e.target.value)}>
-            <option value="checking">Checking</option>
-            <option value="savings">Savings</option>
-            <option value="emergency_fund">Emergency fund</option>
-            <option value="credit">Credit card</option>
-            <option value="investment">Investment (IRA / brokerage / 401k)</option>
-          </select>
-        </div>
-        <div className="field">
-          <label>Current balance</label>
-          <input inputMode="decimal" value={balance} onChange={e => setBalance(e.target.value)} placeholder="0.00" />
-        </div>
-        {err && <div className="bad small">{err}</div>}
-        <div className="actions">
-          <button type="button" className="btn ghost" onClick={onClose}>Cancel</button>
-          <button className="btn primary" disabled={busy}>{busy ? 'Adding…' : 'Add account'}</button>
-        </div>
-      </form>
-    </div>
+    <Modal title="Add account" onClose={onClose} onSubmit={submit}>
+      <div className="field">
+        <label>Name</label>
+        <input autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Chase Checking" />
+      </div>
+      <div className="field">
+        <label>Type</label>
+        <select value={type} onChange={e => setType(e.target.value)}>
+          <option value="checking">Checking</option>
+          <option value="savings">Savings</option>
+          <option value="emergency_fund">Emergency fund</option>
+          <option value="credit">Credit card</option>
+          <option value="investment">Investment (IRA / brokerage / 401k)</option>
+        </select>
+      </div>
+      <div className="field">
+        <label>Current balance</label>
+        <input inputMode="decimal" value={balance} onChange={e => setBalance(e.target.value)} placeholder="0.00" />
+      </div>
+      {err && <div className="bad small">{err}</div>}
+      <div className="actions">
+        <button type="button" className="btn ghost" onClick={onClose}>Cancel</button>
+        <button className="btn primary" disabled={busy}>{busy ? 'Adding…' : 'Add account'}</button>
+      </div>
+    </Modal>
   )
 }
 
