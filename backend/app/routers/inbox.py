@@ -2,11 +2,12 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .. import schemas
 from ..db import get_db
-from ..models import Fund, FundKind, GoalSettlement, InboxStatus, PlaidInbox
+from ..models import Fund, FundKind, GoalSettlement, InboxStatus, PlaidInbox, Transaction
 from ..services import transactions as tx_svc
 from ..services.suggest import suggest_fund
 
@@ -51,50 +52,80 @@ def approve(inbox_id: int, body: schemas.InboxApprove, db: Session = Depends(get
     # recorded it already, and a second one would double the contribution.
     already_posted = tx_svc.find_by_plaid_id(db, item.plaid_transaction_id)
     if already_posted is not None:
-        already_posted.fund_id = fund_id
+        return _adopt(db, item, already_posted, fund_id)
+
+    try:
+        if is_income:
+            t = tx_svc.post_income(
+                db,
+                fund_id=fund_id,
+                amount=-item.amount,
+                txn_date=item.date,
+                merchant=item.merchant,
+                plaid_transaction_id=item.plaid_transaction_id,
+            )
+        else:
+            t = tx_svc.post_expense(
+                db,
+                fund_id=fund_id,
+                amount=item.amount,
+                txn_date=item.date,
+                merchant=item.merchant,
+                plaid_transaction_id=item.plaid_transaction_id,
+            )
+
+        # Auto-settle: if this is an income approved into a goal fund, that's a
+        # physical contribution arriving. Record it as a GoalSettlement too so the
+        # To-Move panel's pending tally clears and contribution_ytd / saved_this_month
+        # reflect it — without the user clicking "Mark moved" separately.
+        if is_income and fund_id is not None:
+            fund = db.get(Fund, fund_id)
+            if fund and fund.kind == FundKind.goal:
+                db.add(GoalSettlement(
+                    goal_id=fund.id,
+                    from_account_id=None,  # unknown — Plaid only shows the destination side
+                    to_account_id=fund.backed_by_account_id,
+                    amount=-item.amount,
+                    settled_at=item.date,
+                ))
+
         _mark_reviewed(item)
         db.commit()
-        db.refresh(already_posted)
-        return already_posted
+    except IntegrityError:
+        # The lookup above is a read, so it can only speak for the moment it ran:
+        # a concurrent approve of the same Plaid id (two clicks, or a click racing
+        # a sync-driven one) can post between that read and this flush, and the
+        # unique index on `transactions.plaid_transaction_id` rejects the loser.
+        # Roll the failed transaction back — without it the session is poisoned
+        # and every later statement on this request errors — then settle for the
+        # row the winner posted. Same outcome as losing the race by a second and
+        # taking the adopt path above.
+        db.rollback()
+        already_posted = tx_svc.find_by_plaid_id(db, item.plaid_transaction_id)
+        if already_posted is None:
+            raise  # a different constraint; nothing here can make it idempotent
+        return _adopt(db, item, already_posted, fund_id)
 
-    if is_income:
-        t = tx_svc.post_income(
-            db,
-            fund_id=fund_id,
-            amount=-item.amount,
-            txn_date=item.date,
-            merchant=item.merchant,
-            plaid_transaction_id=item.plaid_transaction_id,
-        )
-    else:
-        t = tx_svc.post_expense(
-            db,
-            fund_id=fund_id,
-            amount=item.amount,
-            txn_date=item.date,
-            merchant=item.merchant,
-            plaid_transaction_id=item.plaid_transaction_id,
-        )
-
-    # Auto-settle: if this is an income approved into a goal fund, that's a
-    # physical contribution arriving. Record it as a GoalSettlement too so the
-    # To-Move panel's pending tally clears and contribution_ytd / saved_this_month
-    # reflect it — without the user clicking "Mark moved" separately.
-    if is_income and fund_id is not None:
-        fund = db.get(Fund, fund_id)
-        if fund and fund.kind == FundKind.goal:
-            db.add(GoalSettlement(
-                goal_id=fund.id,
-                from_account_id=None,  # unknown — Plaid only shows the destination side
-                to_account_id=fund.backed_by_account_id,
-                amount=-item.amount,
-                settled_at=item.date,
-            ))
-
-    _mark_reviewed(item)
-    db.commit()
     db.refresh(t)
     return t
+
+
+def _adopt(
+    db: Session, item: PlaidInbox, posted: Transaction, fund_id: int | None
+) -> Transaction:
+    """Approve an inbox row whose Plaid id the ledger already holds.
+
+    Retags the posted entry to the fund just chosen rather than posting a second
+    one: approving means one ledger row per Plaid id, and the money already
+    moved once. Amount and date stay as posted — this path is a re-tag, not a
+    re-import. No goal settlement is recorded either; the approve that posted
+    the row recorded it, and a second would double the contribution.
+    """
+    posted.fund_id = fund_id
+    _mark_reviewed(item)
+    db.commit()
+    db.refresh(posted)
+    return posted
 
 
 def _mark_reviewed(item: PlaidInbox) -> None:

@@ -136,3 +136,38 @@ def test_approving_an_item_that_is_not_pending_is_a_404(client, db):
     assert client.post(
         f"/inbox/{inbox_id}/approve", json={"fund_id": fund_id}
     ).status_code == 404
+
+
+def test_losing_a_race_to_post_the_plaid_id_adopts_instead_of_500ing(client, db, monkeypatch):
+    """The ledger lookup is a read: another approve of the same Plaid id can post
+    between it and the insert, and the unique index rejects the loser. Blinding
+    the first lookup reproduces that stale read — the request has to roll back
+    and adopt the winner's row rather than hand the user a 500."""
+    from app.routers import inbox as inbox_router
+
+    dining = a_fund(client, "Dining")
+    groceries = a_fund(client, "Groceries")
+    approved = stage_inbox_item(db)
+    first = client.post(f"/inbox/{approved}/approve", json={"fund_id": dining}).json()
+    drop_inbox_row(db, approved)
+    restaged = stage_inbox_item(db)
+
+    real_find = inbox_router.tx_svc.find_by_plaid_id
+    seen: list[str] = []
+
+    def blind_on_first_look(session, plaid_transaction_id):
+        seen.append(plaid_transaction_id)
+        if len(seen) == 1:
+            return None  # as if the winner had not committed yet
+        return real_find(session, plaid_transaction_id)
+
+    monkeypatch.setattr(inbox_router.tx_svc, "find_by_plaid_id", blind_on_first_look)
+
+    res = client.post(f"/inbox/{restaged}/approve", json={"fund_id": groceries})
+
+    assert res.status_code == 200
+    assert res.json()["id"] == first["id"]
+    assert res.json()["fund_id"] == groceries
+    assert [t["id"] for t in client.get("/transactions").json()] == [first["id"]]
+    db.expire_all()
+    assert db.get(PlaidInbox, restaged).status == InboxStatus.approved
