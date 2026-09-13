@@ -15,9 +15,25 @@ from datetime import date
 from decimal import Decimal
 from typing import Optional
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..models import Transaction, TxType
+
+
+def find_by_plaid_id(db: Session, plaid_transaction_id: str) -> Optional[Transaction]:
+    """The ledger row for a Plaid transaction, if one is already posted.
+
+    `transactions.plaid_transaction_id` is unique, so posting the same Plaid id
+    twice is a database error rather than a duplicate row. Everything that can
+    meet the same Plaid transaction more than once — the inbox approve, the
+    sync's ingest — asks here first and treats a hit as "already in the ledger".
+    """
+    return db.scalar(
+        select(Transaction).where(
+            Transaction.plaid_transaction_id == plaid_transaction_id
+        )
+    )
 
 
 def _post(

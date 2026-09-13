@@ -21,6 +21,7 @@ from app import db as db_module
 from app.config import settings
 from app.models import Account, AccountType, PlaidInbox, PlaidItem
 from app.services import plaid_sync
+from app.services import transactions as tx_svc
 from app.services.plaid_client import SyncPage
 from stub_plaid import StubPlaidClient, plaid_account, plaid_transaction
 
@@ -143,6 +144,37 @@ def test_an_already_seen_transaction_is_not_added_twice(db):
 
     assert plaid_sync.run_sync(db, client) == 0
     assert inbox_ids(db) == ["txn-1"]
+
+
+def test_a_transaction_already_in_the_ledger_is_not_restaged(db):
+    """After an approve, the ledger entry is the record of having seen the id —
+    and `removed` reconciliation can delete the inbox row that proved it. Plaid
+    replaying the id must not stage an approve the ledger can only reject."""
+    client = stub_with(
+        one_page(plaid_transaction("txn-1", txn_date=AFTER_FLOOR, account_id=CHECKING))
+    )
+    item = seeded_item(db)
+    assert plaid_sync.run_sync(db, client) == 1
+
+    # Approve it — then lose the inbox row the way a `removed` page does.
+    inbox_row = db.scalar(select(PlaidInbox).where(PlaidInbox.plaid_transaction_id == "txn-1"))
+    tx_svc.post_expense(
+        db,
+        fund_id=None,
+        amount=inbox_row.amount,
+        txn_date=inbox_row.date,
+        merchant=inbox_row.merchant,
+        plaid_transaction_id="txn-1",
+    )
+    db.delete(inbox_row)
+    db.commit()
+
+    db.expire_all()
+    db.get(PlaidItem, item.id).cursor = None  # rewind, so Plaid replays the page
+    db.commit()
+
+    assert plaid_sync.run_sync(db, client) == 0
+    assert inbox_ids(db) == []
 
 
 def test_pending_transactions_are_skipped(db):

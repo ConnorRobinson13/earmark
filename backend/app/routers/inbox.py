@@ -40,6 +40,23 @@ def approve(inbox_id: int, body: schemas.InboxApprove, db: Session = Depends(get
         if fund_id is None:
             raise HTTPException(400, "no fund chosen and no suggestion available")
 
+    # The same Plaid transaction can reach a pending inbox row twice: a `removed`
+    # page deletes the row it was approved from and leaves the posted ledger
+    # entry behind, so a later page re-adds the id with nothing in the inbox to
+    # dedupe against. Posting it again trips the unique index on
+    # `transactions.plaid_transaction_id` — which is how approving turned into a
+    # 500. Adopt the entry that is already there instead: approving means one
+    # ledger row for this Plaid id, tagged to the fund just chosen. No goal
+    # settlement is recorded on this path; the approve that posted the row
+    # recorded it already, and a second one would double the contribution.
+    already_posted = tx_svc.find_by_plaid_id(db, item.plaid_transaction_id)
+    if already_posted is not None:
+        already_posted.fund_id = fund_id
+        _mark_reviewed(item)
+        db.commit()
+        db.refresh(already_posted)
+        return already_posted
+
     if is_income:
         t = tx_svc.post_income(
             db,
@@ -74,11 +91,15 @@ def approve(inbox_id: int, body: schemas.InboxApprove, db: Session = Depends(get
                 settled_at=item.date,
             ))
 
-    item.status = InboxStatus.approved
-    item.reviewed_at = datetime.now(timezone.utc)
+    _mark_reviewed(item)
     db.commit()
     db.refresh(t)
     return t
+
+
+def _mark_reviewed(item: PlaidInbox) -> None:
+    item.status = InboxStatus.approved
+    item.reviewed_at = datetime.now(timezone.utc)
 
 
 @router.post("/{inbox_id}/reject", status_code=204)

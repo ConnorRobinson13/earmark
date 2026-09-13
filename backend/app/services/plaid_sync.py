@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 from ..config import settings
 from ..db import new_session
 from ..models import Account, AccountType, PlaidInbox, PlaidItem
+from . import transactions as tx_svc
 from .plaid_client import PlaidClient, build_plaid_client
 from .suggest import suggest_fund
 
@@ -179,6 +180,13 @@ def _ingest(db: Session, t: dict[str, Any], floor: date | None) -> bool:
     if t.get("pending"):
         return False
     if db.scalar(select(PlaidInbox).where(PlaidInbox.plaid_transaction_id == pid)):
+        return False
+    # The inbox row is not the only record of having seen this id. Approving one
+    # posts to the ledger, and `_reconcile_removed` then deletes the inbox row
+    # if Plaid re-sends the id as `removed` — leaving the ledger entry as the
+    # sole memory of it. Re-staging it would offer the user an approve the
+    # unique index on `transactions.plaid_transaction_id` can only reject.
+    if tx_svc.find_by_plaid_id(db, pid) is not None:
         return False
     txn_date = t["date"]
     if floor and txn_date < floor:
