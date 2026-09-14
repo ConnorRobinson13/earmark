@@ -171,3 +171,37 @@ def test_losing_a_race_to_post_the_plaid_id_adopts_instead_of_500ing(client, db,
     assert [t["id"] for t in client.get("/transactions").json()] == [first["id"]]
     db.expire_all()
     assert db.get(PlaidInbox, restaged).status == InboxStatus.approved
+
+
+def test_approving_adopts_a_row_the_importer_posted_outside_the_inbox(client, db):
+    """Production's shape: the ledger already holds the Plaid id, but nothing in
+    the inbox was ever approved from it — the row came from the bulk importer
+    (or a sync that posted directly), so there is no earlier approve to have
+    marked anything reviewed. The pending row still has to adopt that entry and
+    retag it, not post the Plaid id a second time.
+    """
+    from app.services import transactions as tx_svc
+
+    dining = a_fund(client, "Dining")
+    groceries = a_fund(client, "Groceries")
+    existing = tx_svc.post_expense(
+        db,
+        fund_id=dining,
+        amount=Decimal("11.75"),
+        txn_date=TXN_DATE,
+        merchant="Chick-fil-A",
+        plaid_transaction_id="plaid-txn-1",
+    )
+    db.commit()
+    existing_id = existing.id
+
+    inbox_id = stage_inbox_item(db)  # same Plaid id, never approved from
+
+    res = client.post(f"/inbox/{inbox_id}/approve", json={"fund_id": groceries})
+
+    assert res.status_code == 200
+    assert res.json()["id"] == existing_id
+    assert res.json()["fund_id"] == groceries
+    assert Decimal(res.json()["amount"]) == Decimal("-11.75")
+    assert [t["id"] for t in client.get("/transactions").json()] == [existing_id]
+    assert client.get("/inbox").json() == []
