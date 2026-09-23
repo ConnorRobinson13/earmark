@@ -1,54 +1,117 @@
 /* ==========================================================
    EARMARK — Fund-based budgeting
-   Editorial mode, lime accent, regular density (locked in)
-   Ported from Claude Design handoff
+   Portfolio design language, adapted for dark mode.
+   Three type registers: Fraunces (display), ET Book (editorial
+   prose), IBM Plex Mono (console — labels and figures).
+   Fonts are declared in fonts.css; this file is tokens + skin.
    ========================================================== */
 
 :root {
-  /* RONIN SYSTEMS — Budget Console: ink ramp, crimson accent,
-     Hanken Grotesk body / Syne display / JetBrains Mono figures. */
-  --bg:        #080809;   /* ink-950 — app backdrop */
-  --bg-2:      #0d0d0f;   /* ink-900 — base surface / topbar / drawer */
-  --surface:   #1c1c22;   /* ink-800 — raised card surface */
-  --surface-2: #131318;   /* ink-850 — inset / input field */
-  --surface-3: #24242b;   /* ink-700 */
-  --border:    #2a2a30;   /* ink-600 — strong border */
+  /* ── Ground / ink / rule (dark adaptation of the portfolio palette) ── */
+  --ground:        #0d0d0f;
+  --ground-raised: #131318;
+  --ground-sunken: #08080a;
+
+  --ink:         #e4e4e6;
+  --ink-muted:   #8a8a92;
+  --ink-faint:   #58585e;
+  --ink-inverse: #0d0d0f;
+
+  --rule:        #26262d;
+  --rule-strong: #33333a;
+
+  --accent:       #9e1b23;
+  --accent-hover: #b8232e;
+  --accent-fade:  rgba(158,27,35,0.12);
+
+  --radius: 0;
+
+  /* ── Type scale (from the portfolio, same values) ── */
+  --text-2xs: 0.6875rem;
+  --text-xs:  0.75rem;
+  --text-sm:  0.875rem;
+  --text-base:1.0625rem;
+  --text-lg:  1.25rem;
+  --text-xl:  1.5rem;
+  --text-2xl: 2rem;
+  --text-3xl: 2.75rem;
+  --text-4xl: 3.75rem;
+  --text-5xl: 5rem;
+
+  /* ── Leading ── */
+  --leading-tight:  1.02;
+  --leading-snug:   1.3;
+  --leading-normal: 1.6;
+  --leading-loose:  1.75;
+
+  /* ── Tracking ── */
+  --tracking-display: -0.02em;
+  --tracking-wide:    0.08em;
+  --tracking-console: 0.16em;
+
+  /* ── Spacing (4px base) ── */
+  --space-1:  0.25rem;
+  --space-2:  0.5rem;
+  --space-3:  0.75rem;
+  --space-4:  1rem;
+  --space-5:  1.5rem;
+  --space-6:  2rem;
+  --space-7:  3rem;
+  --space-8:  4rem;
+  --space-9:  6rem;
+  --space-10: 8rem;
+
+  /* ── Motion ── */
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --duration-fast: 120ms;
+  --duration: 200ms;
+
+  /* ── Fonts (three registers) ── */
+  --font-display: "Fraunces", Georgia, serif;
+  --font-editorial: "ET Book", "EB Garamond", Palatino, Georgia, serif;
+  --font-console: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-display-axes: "opsz" 144, "SOFT" 0, "WONK" 0;
+
+  /* ── Legacy aliases (so every existing class name keeps working) ── */
+  --bg:        var(--ground-sunken);
+  --bg-2:      var(--ground);
+  --surface:   var(--ground-raised);
+  --surface-2: var(--ground-sunken);
+  --surface-3: #1c1c22;
+  --border:    var(--rule-strong);
   --border-2:  #33333a;
-  --hairline:  #26262d;   /* visible card hairline */
+  --hairline:  var(--rule);
 
-  --text:      #efefef;   /* ash-100 — primary */
-  --text-2:    #8a8a92;   /* ink-200 — secondary */
-  --text-dim:  #58585e;   /* ink-300 — muted */
-  --text-mute: #484850;   /* ink-400 — faint */
+  --text:      var(--ink);
+  --text-2:    var(--ink-muted);
+  --text-dim:  #6b6e76;
+  --text-mute: var(--ink-faint);
 
-  --good:      #2fb67c;   /* emerald — positive / income */
+  --good:      #2fb67c;
   --good-dim:  rgba(47,182,124,.12);
-  --bad:       #cc2936;   /* crimson — negative / overbudget */
+  --bad:       #cc2936;
   --bad-dim:   rgba(204,41,54,.12);
-  --warn:      #e0a03c;   /* amber */
+  --warn:      #e0a03c;
 
-  --accent:     #cc2936;
-  --accent-2:   #e14250;
-  --accent-ink: #ffffff;
-  --accent-fade: rgba(204,41,54,.12);   /* accent-soft */
-  --accent-border: rgba(204,41,54,.30); /* accent-soft-border */
+  --accent-2:      var(--accent-hover);
+  --accent-ink:    #ffffff;
+  --accent-border: rgba(158,27,35,.30);
 
-  --r-sm: 0px;
-  --r-md: 0px;
-  --r-lg: 0px;
-  --r-xl: 0px;
+  --r-sm: 0;
+  --r-md: 0;
+  --r-lg: 0;
+  --r-xl: 0;
 
-  --shadow-1: 0 1px 0 rgba(255,255,255,.02) inset, 0 1px 2px rgba(0,0,0,.5);
-  --shadow-2: 0 1px 0 rgba(255,255,255,.04) inset, 0 18px 48px rgba(0,0,0,.55);
+  --shadow-1: none;
+  --shadow-2: none;
 
-  --font-sans: "Hanken Grotesk", ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
-  --font-display: "Syne", "Hanken Grotesk", ui-sans-serif, system-ui, sans-serif;
-  --font-num: "JetBrains Mono", ui-monospace, monospace;
+  --font-sans: var(--font-console);
+  --font-mono: var(--font-console);
+  --font-num:  var(--font-console);
 
-  --letter-display: -0.02em;
-  --letter-body:    0.004em;
-  --letter-eyebrow:  0.2em;
+  --letter-display: var(--tracking-display);
+  --letter-body:    0;
+  --letter-eyebrow: var(--tracking-console);
 
   --pad-card: 18px;
   --pad-row:  14px 16px;
@@ -68,12 +131,17 @@
   --tap: 44px;
 }
 
-/* ─── ACCENT: crimson family ─── */
-[data-accent="crimson"] { --accent:#cc2936; --accent-2:#e0414e; --accent-ink:#ffffff; --accent-fade:#261216; }
-[data-accent="oxblood"] { --accent:#a21f2a; --accent-2:#c0303c; --accent-ink:#ffffff; --accent-fade:#200f12; }
-[data-accent="signal"]  { --accent:#e63946; --accent-2:#f45561; --accent-ink:#ffffff; --accent-fade:#2a1316; }
+/* ============================================================
+   GLOBAL RESET
+   ============================================================ */
 
 * { box-sizing: border-box; }
+
+/* Budget Console is uniformly sharp-cornered. Square everything; slider
+   thumbs use ::-webkit pseudo-elements, which `*` does not match, so they
+   stay round on their own. */
+*, *::before, *::after { border-radius: var(--radius) !important; }
+
 html, body, #root { height: 100%; margin: 0; }
 html {
   /* Landscape on iOS otherwise inflates body text and nothing else, which
@@ -81,14 +149,14 @@ html {
   -webkit-text-size-adjust: 100%;
 }
 body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--font-sans);
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--font-editorial);
   font-size: 14px;
   letter-spacing: var(--letter-body);
+  line-height: var(--leading-normal);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  font-feature-settings: "ss01", "ss02", "cv11", "tnum";
   /* A stray element wider than the viewport should not let the whole page
      slide sideways under the thumb. */
   overflow-x: hidden;
@@ -101,7 +169,7 @@ a { color: inherit; text-decoration: none; }
 
 /* Keyboard focus stays visible even where a control paints its own focus ring
    for the mouse. */
-:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* Screen-reader-only: keeps a name on a control whose label is hidden by the
    layout, rather than removing it from the accessibility tree with display:none. */
@@ -120,8 +188,11 @@ a { color: inherit; text-decoration: none; }
   }
 }
 
-.num, .tnum { font-family: var(--font-num); font-feature-settings: "tnum"; letter-spacing: -0.01em; }
-html[data-mode="editorial"] .num { font-feature-settings: "lnum","tnum"; font-weight: 400; }
+.num, .tnum {
+  font-family: var(--font-console);
+  font-feature-settings: "tnum";
+  font-variant-numeric: tabular-nums;
+}
 
 /* ============================================================
    APP SHELL
@@ -149,13 +220,12 @@ html[data-mode="editorial"] .num { font-feature-settings: "lnum","tnum"; font-we
 .sidebar nav .navitem {
   display: flex; align-items: center; gap: 10px;
   padding: 8px 10px;
-  border-radius: var(--r-sm);
   color: var(--text-dim);
-  font-size: 13.5px;
+  font-family: var(--font-console);
+  font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  letter-spacing: -0.005em;
-  transition: background .12s, color .12s;
+  transition: background var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease);
   text-decoration: none;
 }
 .sidebar nav .navitem:hover { color: var(--text-2); background: var(--surface); }
@@ -165,18 +235,18 @@ html[data-mode="editorial"] .num { font-feature-settings: "lnum","tnum"; font-we
   margin-left: auto;
   background: var(--accent);
   color: var(--accent-ink);
-  font-size: 10.5px; font-weight: 700;
-  padding: 1px 6px; border-radius: 99px;
-  font-family: var(--font-num);
+  font-size: 10.5px; font-weight: 600;
+  padding: 1px 6px;
+  font-family: var(--font-console);
 }
 
 .eyebrow {
+  font-family: var(--font-console);
   font-size: 10.5px;
-  letter-spacing: var(--letter-eyebrow);
+  letter-spacing: var(--tracking-console);
   text-transform: uppercase;
   color: var(--text-dim);
   font-weight: 500;
-  font-family: var(--font-sans);
 }
 
 /* MAIN — page scrolls on the body so the sticky topbar pins to the viewport */
@@ -202,10 +272,11 @@ html[data-mode="editorial"] .num { font-feature-settings: "lnum","tnum"; font-we
 }
 .topbar .crumb {
   font-family: var(--font-display);
-  font-size: 18px;
-  font-weight: 400;
-  font-style: italic;
-  letter-spacing: var(--letter-display);
+  font-variation-settings: var(--font-display-axes);
+  font-size: 19px;
+  font-weight: 600;
+  font-style: normal;
+  letter-spacing: var(--tracking-display);
 }
 .topbar .spacer { flex: 1; }
 
@@ -214,7 +285,6 @@ html[data-mode="editorial"] .num { font-feature-settings: "lnum","tnum"; font-we
   display: inline-flex; align-items: center;
   background: var(--surface);
   border: 1px solid var(--hairline);
-  border-radius: var(--r-md);
   height: 34px;
   overflow: hidden;
 }
@@ -224,14 +294,14 @@ html[data-mode="editorial"] .num { font-feature-settings: "lnum","tnum"; font-we
   color: var(--text-dim);
   font-size: 14px;
   display: grid; place-items: center;
-  transition: background .12s, color .12s;
+  transition: background var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease);
 }
 .monthsw button:hover { background: var(--surface-2); color: var(--text); }
 .monthsw button:disabled { opacity: 0.3; cursor: not-allowed; }
 .monthsw .label {
   padding: 0 14px;
-  font-size: 15px;
-  font-family: var(--font-display);
+  font-size: 14px;
+  font-family: var(--font-console);
   font-weight: 500;
   border-left: 1px solid var(--hairline);
   border-right: 1px solid var(--hairline);
@@ -247,17 +317,16 @@ html[data-mode="editorial"] .num { font-feature-settings: "lnum","tnum"; font-we
   width: 34px; height: 34px;
   background: var(--surface);
   border: 1px solid var(--hairline);
-  border-radius: var(--r-md);
   display: grid; place-items: center;
   color: var(--text-dim);
-  transition: all .12s;
+  transition: all var(--duration-fast) var(--ease);
 }
 .iconbtn:hover { color: var(--text); background: var(--surface-2); border-color: var(--border); }
 .iconbtn.primary {
   background: var(--accent);
   color: var(--accent-ink);
   border-color: var(--accent);
-  font-weight: 700;
+  font-weight: 600;
 }
 .iconbtn.primary:hover { background: var(--accent-2); }
 
@@ -266,11 +335,11 @@ html[data-mode="editorial"] .num { font-feature-settings: "lnum","tnum"; font-we
   height: 34px; padding: 0 14px;
   background: var(--surface);
   border: 1px solid var(--hairline);
-  border-radius: var(--r-md);
-  font-size: 13px;
+  font-family: var(--font-console);
+  font-size: 12.5px;
   font-weight: 500;
   color: var(--text-2);
-  transition: all .12s;
+  transition: all var(--duration-fast) var(--ease);
   cursor: pointer;
   /* A button label that wraps turns a 34px control into a 50px one and breaks
      the row it sits in — every label here is two or three words. */
@@ -291,13 +360,12 @@ html[data-mode="editorial"] .num { font-feature-settings: "lnum","tnum"; font-we
 .btn.ghost { background: transparent; border-color: transparent; color: var(--text-dim); }
 .btn.ghost:hover { background: var(--surface); color: var(--text); }
 .btn.sm { height: 28px; padding: 0 10px; font-size: 12px; }
-.btn.lg { height: 42px; padding: 0 18px; font-size: 14px; }
+.btn.lg { height: 42px; padding: 0 18px; font-size: 13.5px; }
 
 /* CARD */
 .card {
   background: var(--surface);
   border: 1px solid var(--hairline);
-  border-radius: var(--r-lg);
   padding: var(--pad-card);
 }
 .card.bare { background: transparent; }
@@ -308,10 +376,11 @@ html[data-mode="editorial"] .num { font-feature-settings: "lnum","tnum"; font-we
 .card .hd h3 {
   margin: 0;
   font-family: var(--font-display);
-  font-style: italic;
-  font-weight: 400;
+  font-variation-settings: var(--font-display-axes);
+  font-style: normal;
+  font-weight: 600;
   font-size: 16px;
-  letter-spacing: var(--letter-display);
+  letter-spacing: var(--tracking-display);
 }
 
 /* INPUTS */
@@ -319,13 +388,13 @@ html[data-mode="editorial"] .num { font-feature-settings: "lnum","tnum"; font-we
   height: 36px;
   background: var(--surface-2);
   border: 1px solid var(--hairline);
-  border-radius: var(--r-md);
   padding: 0 12px;
   color: var(--text);
   width: 100%;
+  font-family: var(--font-console);
   font-size: 13px;
   outline: none;
-  transition: border-color .12s, box-shadow .12s;
+  transition: border-color var(--duration-fast) var(--ease), box-shadow var(--duration-fast) var(--ease);
   /* iOS renders a date input at its own height and a select with a chrome
      chevron unless told otherwise, which is what made the two sit a few pixels
      off every other field in the same form. */
@@ -343,7 +412,7 @@ select {
 }
 textarea { height: auto; padding: 10px 12px; }
 .input:focus, input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-fade); }
-.input.num { font-family: var(--font-num); }
+.input.num { font-family: var(--font-console); }
 
 /* Layout helpers (kept for compat with existing markup) */
 .row { display: flex; align-items: center; gap: 12px; }
@@ -367,7 +436,6 @@ textarea { height: auto; padding: 10px 12px; }
 .hero-unassigned {
   background: linear-gradient(135deg, var(--surface) 0%, var(--surface-2) 100%);
   border: 1px solid var(--hairline);
-  border-radius: var(--r-lg);
   padding: 28px var(--pad-card) 24px;
   position: relative;
   overflow: hidden;
@@ -384,7 +452,7 @@ textarea { height: auto; padding: 10px 12px; }
   position: relative;
 }
 .hero-unassigned .label-row .pulse {
-  width: 6px; height: 6px; border-radius: 99px;
+  width: 6px; height: 6px;
   background: var(--accent);
   box-shadow: 0 0 0 0 var(--accent);
   animation: pulse 2s infinite;
@@ -395,10 +463,11 @@ textarea { height: auto; padding: 10px 12px; }
 }
 .hero-unassigned .big-num {
   font-family: var(--font-display);
-  font-size: 76px;
-  line-height: 1;
-  letter-spacing: -0.025em;
-  font-weight: 300;
+  font-variation-settings: var(--font-display-axes);
+  font-size: 72px;
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-display);
+  font-weight: 500;
   margin: 4px 0 8px;
   font-variant-numeric: tabular-nums;
   position: relative;
@@ -409,8 +478,8 @@ textarea { height: auto; padding: 10px 12px; }
 .hero-unassigned .sub {
   color: var(--text-dim);
   font-size: 13px;
-  max-width: 32ch;
-  line-height: 1.45;
+  max-width: 34ch;
+  line-height: var(--leading-normal);
   position: relative;
 }
 .hero-unassigned .pill-row {
@@ -428,7 +497,6 @@ textarea { height: auto; padding: 10px 12px; }
 .hero-tile {
   background: var(--surface);
   border: 1px solid var(--hairline);
-  border-radius: var(--r-lg);
   padding: 16px var(--pad-card);
   display: flex; flex-direction: column;
   justify-content: space-between;
@@ -436,9 +504,10 @@ textarea { height: auto; padding: 10px 12px; }
 }
 .hero-tile .num-big {
   font-family: var(--font-display);
+  font-variation-settings: var(--font-display-axes);
   font-size: 32px;
-  letter-spacing: -0.02em;
-  font-weight: 400;
+  letter-spacing: var(--tracking-display);
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
   margin-top: 6px;
 }
@@ -462,7 +531,6 @@ textarea { height: auto; padding: 10px 12px; }
 .tomove-panel {
   background: linear-gradient(135deg, var(--surface) 0%, var(--surface-2) 100%);
   border: 1px solid var(--accent-fade);
-  border-radius: var(--r-lg);
   padding: 16px var(--pad-card);
   margin-bottom: 24px;
   position: relative;
@@ -481,8 +549,9 @@ textarea { height: auto; padding: 10px 12px; }
 }
 .tomove-head .amt {
   font-family: var(--font-display);
+  font-variation-settings: var(--font-display-axes);
   font-size: 22px;
-  font-weight: 400;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
   color: var(--accent);
 }
@@ -495,7 +564,6 @@ textarea { height: auto; padding: 10px 12px; }
   padding: 10px 12px;
   background: var(--bg-2);
   border: 1px solid var(--hairline);
-  border-radius: var(--r-md);
 }
 .tomove-row .goal { font-weight: 500; }
 .tomove-row .dest { color: var(--text-2); font-size: 13px; }
@@ -503,8 +571,9 @@ textarea { height: auto; padding: 10px 12px; }
 .tomove-row .amt {
   text-align: right;
   font-family: var(--font-display);
+  font-variation-settings: var(--font-display-axes);
   font-size: 17px;
-  font-weight: 400;
+  font-weight: 500;
   color: var(--accent);
 }
 .tomove-row .from-pick {
@@ -520,7 +589,6 @@ textarea { height: auto; padding: 10px 12px; }
   grid-template-columns: repeat(4, 1fr);
   gap: 0;
   border: 1px solid var(--hairline);
-  border-radius: var(--r-lg);
   background: var(--surface);
   margin-bottom: 24px;
   overflow: hidden;
@@ -530,17 +598,25 @@ textarea { height: auto; padding: 10px 12px; }
   border-right: 1px solid var(--hairline);
 }
 .metric-row > .cell:last-child { border-right: none; }
-.metric-row .lbl { color: var(--text-dim); font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 4px; }
+.metric-row .lbl {
+  font-family: var(--font-console);
+  color: var(--text-dim);
+  font-size: 11px;
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
 .metric-row .val {
   font-family: var(--font-display);
+  font-variation-settings: var(--font-display-axes);
   font-size: 22px;
-  font-weight: 400;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
+  letter-spacing: var(--tracking-display);
 }
 .metric-row .val.bad { color: var(--bad); }
 .metric-row .val.warn { color: var(--warn); }
-.metric-row .delta { font-family: var(--font-num); font-size: 11px; color: var(--text-dim); margin-left: 4px; }
+.metric-row .delta { font-family: var(--font-console); font-size: 11px; color: var(--text-dim); margin-left: 4px; }
 .metric-row .delta.up { color: var(--good); }
 .metric-row .delta.down { color: var(--bad); }
 
@@ -549,7 +625,6 @@ textarea { height: auto; padding: 10px 12px; }
   width: 100%;
   height: 4px;
   background: var(--hairline);
-  border-radius: 99px;
   outline: none;
   -webkit-appearance: none;
   appearance: none;
@@ -576,7 +651,6 @@ textarea { height: auto; padding: 10px 12px; }
 .inc-progress {
   height: 4px;
   background: var(--hairline);
-  border-radius: 99px;
   overflow: hidden;
   margin-top: 6px;
 }
@@ -592,9 +666,10 @@ textarea { height: auto; padding: 10px 12px; }
 .sec-head h2 {
   margin: 0;
   font-family: var(--font-display);
+  font-variation-settings: var(--font-display-axes);
   font-size: 26px;
-  font-weight: 400;
-  letter-spacing: var(--letter-display);
+  font-weight: 600;
+  letter-spacing: var(--tracking-display);
   white-space: nowrap;
 }
 .sec-head .sub { color: var(--text-dim); font-size: 13px; }
@@ -607,12 +682,17 @@ textarea { height: auto; padding: 10px 12px; }
   padding: 4px 6px;
   margin-bottom: 6px;
 }
-.cat-head .name { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-dim); font-weight: 600; }
-.cat-head .totals { margin-left: auto; font-size: 11px; color: var(--text-mute); font-family: var(--font-num); }
+.cat-head .name {
+  font-family: var(--font-console);
+  font-size: 11px; text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  color: var(--text-dim); font-weight: 600;
+}
+.cat-head .totals { margin-left: auto; font-size: 11px; color: var(--text-mute); font-family: var(--font-console); }
 .cat-head .totals b { color: var(--text-dim); font-weight: 500; }
 
 /* FUND ROW */
-.fund-list { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r-lg); overflow: hidden; }
+.fund-list { background: var(--surface); border: 1px solid var(--hairline); overflow: hidden; }
 .fund-row {
   display: grid;
   grid-template-columns: 1fr 140px 110px 110px 36px;
@@ -631,27 +711,29 @@ textarea { height: auto; padding: 10px 12px; }
 .fund-row .meta { font-size: 11.5px; color: var(--text-dim); margin-top: 2px; font-variant-numeric: tabular-nums; }
 .fund-row .right { text-align: right; }
 .fund-row .assigned, .fund-row .balance {
-  font-family: var(--font-display);
-  font-size: 17px;
-  font-weight: 400;
+  font-family: var(--font-console);
+  font-size: 15px;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
 }
 .fund-row .balance.bad { color: var(--bad); }
 .fund-row .balance.warn { color: var(--warn); }
-.fund-row .col-lbl { font-size: 10.5px; color: var(--text-mute); letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 1px; }
+.fund-row .col-lbl {
+  font-family: var(--font-console);
+  font-size: 10.5px; color: var(--text-mute);
+  letter-spacing: var(--tracking-wide); text-transform: uppercase; margin-bottom: 1px;
+}
 
 .fund-row .assign-edit {
   width: 100%;
   text-align: right;
   background: var(--surface-2);
   border: 1px solid var(--accent);
-  border-radius: var(--r-sm);
   padding: 6px 10px;
   color: var(--text);
-  font-family: var(--font-display);
-  font-size: 17px;
-  font-weight: 400;
+  font-family: var(--font-console);
+  font-size: 15px;
+  font-weight: 500;
   outline: none;
   height: auto;
   box-shadow: 0 0 0 3px var(--accent-fade);
@@ -660,14 +742,12 @@ textarea { height: auto; padding: 10px 12px; }
   width: 100%;
   background: transparent;
   border: 1px dashed transparent;
-  border-radius: var(--r-sm);
   padding: 6px 10px;
   text-align: right;
   color: var(--text);
-  font-family: var(--font-display);
-  font-size: 17px;
-  font-weight: 400;
-  letter-spacing: -0.01em;
+  font-family: var(--font-console);
+  font-size: 15px;
+  font-weight: 500;
   transition: background .1s, border-color .1s;
   cursor: pointer;
 }
@@ -677,8 +757,7 @@ textarea { height: auto; padding: 10px 12px; }
   color: var(--text-mute);
   border: none;
   padding: 4px 6px;
-  border-radius: var(--r-sm);
-  transition: opacity .12s, color .12s, background .12s;
+  transition: opacity var(--duration-fast) var(--ease), color var(--duration-fast) var(--ease), background var(--duration-fast) var(--ease);
   display: grid; place-items: center;
 }
 .fund-row .row-del:hover { color: var(--bad); background: rgba(255,126,126,.08); }
@@ -706,7 +785,7 @@ textarea { height: auto; padding: 10px 12px; }
 .fund-row .progress-fill {
   height: 100%;
   background: var(--good);
-  transition: width .3s cubic-bezier(.4,0,.2,1);
+  transition: width .3s var(--ease);
 }
 .fund-row .progress-fill.warn { background: var(--warn); }
 .fund-row .progress-fill.over { background: var(--bad); }
@@ -723,44 +802,44 @@ textarea { height: auto; padding: 10px 12px; }
 .goal-card {
   background: var(--surface);
   border: 1px solid var(--hairline);
-  border-radius: var(--r-lg);
   padding: var(--pad-card);
   display: flex; flex-direction: column;
   gap: 10px;
   position: relative;
-  transition: border-color .12s;
+  transition: border-color var(--duration-fast) var(--ease);
 }
 .goal-card:hover { border-color: var(--border); }
 .goal-card .name {
   font-family: var(--font-display);
+  font-variation-settings: var(--font-display-axes);
   font-size: 19px;
-  font-weight: 400;
-  letter-spacing: -0.01em;
+  font-weight: 600;
+  letter-spacing: var(--tracking-display);
 }
 .goal-card .deadline { font-size: 11.5px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
 .goal-card .amount-row { display: flex; align-items: baseline; gap: 8px; margin-top: 4px; }
 .goal-card .amount-row .big {
   font-family: var(--font-display);
+  font-variation-settings: var(--font-display-axes);
   font-size: 30px;
-  font-weight: 400;
-  letter-spacing: -0.02em;
+  font-weight: 500;
+  letter-spacing: var(--tracking-display);
   font-variant-numeric: tabular-nums;
 }
 .goal-card .amount-row .target {
-  font-family: var(--font-num);
+  font-family: var(--font-console);
   font-size: 13px;
   color: var(--text-dim);
 }
 .goal-card .progress-track {
   height: 6px;
   background: var(--hairline);
-  border-radius: 99px;
   overflow: hidden;
   margin-top: 2px;
 }
 .goal-card .progress-fill {
   height: 100%; background: var(--accent);
-  transition: width .4s cubic-bezier(.4,0,.2,1);
+  transition: width .4s var(--ease);
 }
 .goal-card .footer-row {
   display: flex; justify-content: space-between; align-items: center;
@@ -778,9 +857,10 @@ textarea { height: auto; padding: 10px 12px; }
   border-top: 1px solid var(--hairline);
 }
 .goal-card .goal-assign-row .col-lbl {
+  font-family: var(--font-console);
   font-size: 10.5px;
   color: var(--text-mute);
-  letter-spacing: 0.04em;
+  letter-spacing: var(--tracking-wide);
   text-transform: uppercase;
 }
 .goal-card .goal-assign-row .assign-wrap { min-width: 110px; }
@@ -800,13 +880,12 @@ textarea { height: auto; padding: 10px 12px; }
 }
 .goal-card .goal-min { margin-top: 2px; font-size: 10.5px; }
 .goal-badge {
+  font-family: var(--font-console);
   font-size: 9.5px;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--tracking-wide);
   padding: 2px 8px;
-  border-radius: 99px;
   font-weight: 600;
-  font-family: var(--font-sans);
 }
 .goal-badge.savings { background: var(--surface-2); color: var(--text-dim); border: 1px solid var(--hairline); }
 .goal-badge.contribution { background: var(--accent-fade); color: var(--accent); border: 1px solid var(--accent); }
@@ -815,11 +894,10 @@ textarea { height: auto; padding: 10px 12px; }
 .goal-card .contribute-btn {
   position: absolute; top: 14px; right: 14px;
   width: 26px; height: 26px;
-  border-radius: 99px;
   background: var(--surface-2);
   display: grid; place-items: center;
   color: var(--text-dim);
-  transition: opacity .12s;
+  transition: opacity var(--duration-fast) var(--ease);
   border: 1px solid var(--hairline);
 }
 @media (hover: hover) {
@@ -838,12 +916,12 @@ textarea { height: auto; padding: 10px 12px; }
 }
 .inbox-progress .bar {
   flex: 1; height: 4px;
-  background: var(--hairline); border-radius: 99px;
+  background: var(--hairline);
   overflow: hidden;
 }
 .inbox-progress .bar > div { height: 100%; background: var(--accent); transition: width .3s; }
 .inbox-progress .count {
-  font-family: var(--font-num);
+  font-family: var(--font-console);
   font-size: 12px;
   color: var(--text-dim);
 }
@@ -851,7 +929,6 @@ textarea { height: auto; padding: 10px 12px; }
 .txcard {
   background: var(--surface);
   border: 1px solid var(--hairline);
-  border-radius: var(--r-xl);
   padding: 40px 32px 28px;
   box-shadow: var(--shadow-2);
 }
@@ -860,27 +937,30 @@ textarea { height: auto; padding: 10px 12px; }
   margin-bottom: 22px;
 }
 .txcard .mlogo {
-  width: 46px; height: 46px; border-radius: var(--r-md);
+  width: 46px; height: 46px;
   background: var(--surface-2);
   display: grid; place-items: center;
   font-family: var(--font-display);
+  font-variation-settings: var(--font-display-axes);
   font-size: 20px;
   font-weight: 600;
   color: var(--text-2);
-  letter-spacing: -0.04em;
+  letter-spacing: var(--tracking-display);
 }
 .txcard .merchant-info .name {
   font-family: var(--font-display);
+  font-variation-settings: var(--font-display-axes);
   font-size: 26px;
-  font-weight: 400;
-  letter-spacing: -0.02em;
+  font-weight: 500;
+  letter-spacing: var(--tracking-display);
 }
 .txcard .merchant-info .meta { font-size: 12px; color: var(--text-dim); margin-top: 2px; font-variant-numeric: tabular-nums; }
 .txcard .amount {
   font-family: var(--font-display);
+  font-variation-settings: var(--font-display-axes);
   font-size: 72px;
-  font-weight: 300;
-  letter-spacing: -0.03em;
+  font-weight: 400;
+  letter-spacing: var(--tracking-display);
   font-variant-numeric: tabular-nums;
   margin: 8px 0 24px;
 }
@@ -892,10 +972,13 @@ textarea { height: auto; padding: 10px 12px; }
   padding: 12px 14px;
   background: var(--bg);
   border: 1px solid var(--hairline);
-  border-radius: var(--r-md);
   margin-bottom: 16px;
 }
-.txcard .suggestion-box .label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; }
+.txcard .suggestion-box .label {
+  font-family: var(--font-console);
+  font-size: 11px; color: var(--text-dim);
+  text-transform: uppercase; letter-spacing: var(--tracking-wide);
+}
 .txcard .suggestion-box .value { font-size: 14px; font-weight: 500; margin-top: 2px; }
 .txcard .suggestion-box .ai-tag {
   margin-left: auto;
@@ -903,10 +986,9 @@ textarea { height: auto; padding: 10px 12px; }
   background: var(--accent-fade);
   color: var(--accent);
   padding: 3px 8px;
-  border-radius: 99px;
   font-weight: 600;
   letter-spacing: 0.02em;
-  font-family: var(--font-num);
+  font-family: var(--font-console);
 }
 
 .fund-picker {
@@ -917,9 +999,9 @@ textarea { height: auto; padding: 10px 12px; }
   padding: 2px;
 }
 .fund-pill {
+  font-family: var(--font-console);
   font-size: 12px;
   padding: 6px 12px;
-  border-radius: 99px;
   background: var(--surface-2);
   border: 1px solid var(--hairline);
   color: var(--text-2);
@@ -958,13 +1040,17 @@ textarea { height: auto; padding: 10px 12px; }
 }
 .inbox-empty .icon {
   width: 56px; height: 56px;
-  border-radius: 99px;
   background: var(--accent-fade);
   color: var(--accent);
   display: grid; place-items: center;
   margin: 0 auto 16px;
 }
-.inbox-empty h2 { font-family: var(--font-display); font-weight: 400; margin: 0 0 6px; font-size: 22px; }
+.inbox-empty h2 {
+  font-family: var(--font-display);
+  font-variation-settings: var(--font-display-axes);
+  font-weight: 600; margin: 0 0 6px; font-size: 22px;
+  letter-spacing: var(--tracking-display);
+}
 .inbox-empty p { color: var(--text-dim); margin: 0 0 18px; }
 
 /* ============================================================
@@ -987,7 +1073,6 @@ textarea { height: auto; padding: 10px 12px; }
 .modal {
   background: var(--bg-2);
   border: 1px solid var(--border);
-  border-radius: var(--r-xl);
   width: 480px;
   max-width: 100%;
   padding: 28px;
@@ -998,22 +1083,28 @@ textarea { height: auto; padding: 10px 12px; }
 .modal h2 {
   margin: 0 0 18px;
   font-family: var(--font-display);
-  font-style: italic;
-  font-weight: 400;
+  font-variation-settings: var(--font-display-axes);
+  font-style: normal;
+  font-weight: 600;
   font-size: 26px;
-  letter-spacing: var(--letter-display);
+  letter-spacing: var(--tracking-display);
 }
 .modal .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
-.modal .field label { font-size: 11.5px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+.modal .field label {
+  font-family: var(--font-console);
+  font-size: 11.5px; color: var(--text-dim);
+  text-transform: uppercase; letter-spacing: var(--tracking-wide); font-weight: 600;
+}
 .modal .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
 .modal-head { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
 .modal-head h2 { margin: 0; flex: 1; min-width: 0; }
 
 .amount-input {
   font-family: var(--font-display);
+  font-variation-settings: var(--font-display-axes);
   font-size: 52px;
-  font-weight: 300;
-  letter-spacing: -0.03em;
+  font-weight: 400;
+  letter-spacing: var(--tracking-display);
   background: transparent;
   border: none;
   color: var(--text);
@@ -1028,14 +1119,13 @@ textarea { height: auto; padding: 10px 12px; }
 .type-toggle {
   display: inline-flex;
   background: var(--surface-2);
-  border-radius: var(--r-sm);
   padding: 2px;
   border: 1px solid var(--hairline);
 }
 .type-toggle button {
+  font-family: var(--font-console);
   padding: 6px 14px;
   font-size: 12px;
-  border-radius: var(--r-sm);
   color: var(--text-dim);
   font-weight: 500;
 }
@@ -1047,7 +1137,6 @@ textarea { height: auto; padding: 10px 12px; }
 .fd-hero {
   background: var(--surface);
   border: 1px solid var(--hairline);
-  border-radius: var(--r-lg);
   padding: 28px var(--pad-card);
   margin-bottom: 18px;
 }
@@ -1055,17 +1144,23 @@ textarea { height: auto; padding: 10px 12px; }
 .fd-hero h1 {
   margin: 0;
   font-family: var(--font-display);
+  font-variation-settings: var(--font-display-axes);
   font-size: 38px;
-  font-weight: 400;
-  letter-spacing: var(--letter-display);
+  font-weight: 600;
+  letter-spacing: var(--tracking-display);
 }
 .fd-hero .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; margin-top: 20px; }
-.fd-hero .stat .lbl { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+.fd-hero .stat .lbl {
+  font-family: var(--font-console);
+  font-size: 11px; color: var(--text-dim);
+  text-transform: uppercase; letter-spacing: var(--tracking-wide); margin-bottom: 4px;
+}
 .fd-hero .stat .val {
   font-family: var(--font-display);
+  font-variation-settings: var(--font-display-axes);
   font-size: 30px;
-  font-weight: 400;
-  letter-spacing: -0.02em;
+  font-weight: 500;
+  letter-spacing: var(--tracking-display);
   font-variant-numeric: tabular-nums;
 }
 .fd-hero .stat .val.bad { color: var(--bad); }
@@ -1073,7 +1168,7 @@ textarea { height: auto; padding: 10px 12px; }
 
 .fd-category-input { max-width: 240px; }
 
-.tx-list { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--r-lg); overflow: hidden; }
+.tx-list { background: var(--surface); border: 1px solid var(--hairline); overflow: hidden; }
 .tx-row {
   display: grid; grid-template-columns: 80px 1fr 120px;
   gap: 16px;
@@ -1082,10 +1177,10 @@ textarea { height: auto; padding: 10px 12px; }
   align-items: center;
 }
 .tx-row:last-child { border-bottom: none; }
-.tx-row .date { font-family: var(--font-num); font-size: 12px; color: var(--text-dim); }
+.tx-row .date { font-family: var(--font-console); font-size: 12px; color: var(--text-dim); }
 .tx-row .merchant { font-size: 13.5px; }
 .tx-row .merchant .notes { font-size: 11px; color: var(--text-dim); margin-top: 1px; }
-.tx-row .amount { font-family: var(--font-num); font-size: 14px; text-align: right; font-weight: 500; font-variant-numeric: tabular-nums; }
+.tx-row .amount { font-family: var(--font-console); font-size: 14px; text-align: right; font-weight: 500; font-variant-numeric: tabular-nums; }
 .tx-row .amount.income { color: var(--good); }
 .tx-row .amount.outflow { color: var(--text); }
 
@@ -1097,30 +1192,38 @@ textarea { height: auto; padding: 10px 12px; }
 .plan-step .step-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .plan-step .step-num {
   width: 24px; height: 24px;
-  border-radius: 99px;
   background: var(--surface-2);
   color: var(--text-dim);
   display: grid; place-items: center;
-  font-size: 11px; font-weight: 700;
-  font-family: var(--font-num);
+  font-size: 11px; font-weight: 600;
+  font-family: var(--font-console);
   border: 1px solid var(--hairline);
 }
 .plan-step.done .step-num { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
-.plan-step h3 { margin: 0; font-family: var(--font-display); font-size: 20px; font-weight: 400; letter-spacing: -0.01em; }
+.plan-step h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-variation-settings: var(--font-display-axes);
+  font-size: 20px; font-weight: 600; letter-spacing: var(--tracking-display);
+}
 
 .plan-sticky {
   position: sticky; top: 84px;
   background: var(--surface);
   border: 1px solid var(--hairline);
-  border-radius: var(--r-lg);
   padding: 22px;
 }
-.plan-sticky .lbl { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; }
+.plan-sticky .lbl {
+  font-family: var(--font-console);
+  font-size: 11px; color: var(--text-dim);
+  text-transform: uppercase; letter-spacing: var(--tracking-wide);
+}
 .plan-sticky .big {
   font-family: var(--font-display);
+  font-variation-settings: var(--font-display-axes);
   font-size: 52px;
-  font-weight: 300;
-  letter-spacing: -0.03em;
+  font-weight: 400;
+  letter-spacing: var(--tracking-display);
   font-variant-numeric: tabular-nums;
   margin: 6px 0;
 }
@@ -1137,22 +1240,28 @@ textarea { height: auto; padding: 10px 12px; }
   padding: 18px;
   background: var(--surface);
   border: 1px solid var(--hairline);
-  border-radius: var(--r-lg);
   position: relative;
   overflow: hidden;
 }
 .acct-card .type {
+  font-family: var(--font-console);
   font-size: 10.5px;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: var(--tracking-wide);
   color: var(--text-dim);
   font-weight: 600;
 }
-.acct-card .name { font-family: var(--font-display); font-size: 20px; font-weight: 400; margin-top: 4px; }
+.acct-card .name {
+  font-family: var(--font-display);
+  font-variation-settings: var(--font-display-axes);
+  font-size: 20px; font-weight: 600; margin-top: 4px;
+  letter-spacing: var(--tracking-display);
+}
 .acct-type-select {
+  font-family: var(--font-console);
   font-size: 10.5px;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: var(--tracking-wide);
   color: var(--text-dim);
   font-weight: 600;
   background: transparent;
@@ -1161,10 +1270,9 @@ textarea { height: auto; padding: 10px 12px; }
   padding: 2px 4px;
   width: auto;
   cursor: pointer;
-  font-family: var(--font-sans);
 }
 .acct-type-select:hover { border-color: var(--border); }
-.acct-card .bal { font-family: var(--font-num); font-size: 22px; margin-top: 14px; font-variant-numeric: tabular-nums; }
+.acct-card .bal { font-family: var(--font-console); font-size: 22px; margin-top: 14px; font-variant-numeric: tabular-nums; }
 .acct-card .sync { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
 .acct-card .sync.warn { color: var(--warn); }
 .acct-card .sync.bad { color: var(--bad); }
@@ -1179,10 +1287,9 @@ textarea { height: auto; padding: 10px 12px; }
   margin-bottom: 8px;
 }
 .recon-badge {
+  font-family: var(--font-console);
   font-size: 10.5px;
-  font-family: var(--font-num);
   padding: 2px 8px;
-  border-radius: 99px;
   font-weight: 600;
   letter-spacing: 0.02em;
 }
@@ -1203,7 +1310,7 @@ textarea { height: auto; padding: 10px 12px; }
   font-weight: 600;
   color: var(--text);
 }
-.acct-card .acct-recon-row .num { font-family: var(--font-num); }
+.acct-card .acct-recon-row .num { font-family: var(--font-console); }
 
 /* ============================================================
    UNASSIGNED CHIP (topbar)
@@ -1213,14 +1320,13 @@ textarea { height: auto; padding: 10px 12px; }
   padding: 5px 12px;
   background: var(--surface);
   border: 1px solid var(--hairline);
-  border-radius: 99px;
   font-size: 12px;
 }
-.uchip .dot { width: 6px; height: 6px; border-radius: 99px; }
+.uchip .dot { width: 6px; height: 6px; }
 .uchip.zero .dot { background: var(--good); }
 .uchip.pos  .dot { background: var(--warn); }
 .uchip.neg  .dot { background: var(--bad); }
-.uchip .amt { font-family: var(--font-num); font-weight: 600; font-variant-numeric: tabular-nums; }
+.uchip .amt { font-family: var(--font-console); font-weight: 600; font-variant-numeric: tabular-nums; }
 .uchip.pos { color: var(--warn); border-color: rgba(240,184,107,.3); }
 .uchip.neg { color: var(--bad); border-color: rgba(255,126,126,.3); }
 
@@ -1242,18 +1348,18 @@ textarea { height: auto; padding: 10px 12px; }
   gap: 14px;
   padding: 10px 14px;
   border: 1px solid var(--hairline);
-  border-radius: 12px;
   background: var(--surface, transparent);
 }
 .cf-day.today { border-color: var(--accent); background: var(--accent-fade); }
 .cf-day.neg { border-color: var(--bad); background: var(--bad-dim); }
 
 .cf-date { display: flex; flex-direction: column; align-items: center; line-height: 1.1; }
-.cf-date .cf-wd { font-size: 10px; text-transform: uppercase; color: var(--text-mute); letter-spacing: .04em; }
-.cf-date .cf-dn { font-size: 20px; font-weight: 600; }
+.cf-date .cf-wd { font-family: var(--font-console); font-size: 10px; text-transform: uppercase; color: var(--text-mute); letter-spacing: var(--tracking-wide); }
+.cf-date .cf-dn { font-family: var(--font-console); font-size: 20px; font-weight: 600; }
 .cf-date .cf-today-tag {
+  font-family: var(--font-console);
   font-size: 8px; text-transform: uppercase; letter-spacing: .05em;
-  color: var(--accent-ink); background: var(--accent); border-radius: 6px;
+  color: var(--accent-ink); background: var(--accent);
   padding: 1px 4px; margin-top: 2px;
 }
 
@@ -1263,6 +1369,7 @@ textarea { height: auto; padding: 10px 12px; }
 .cf-evt > span:last-child { font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 .cf-bal {
+  font-family: var(--font-console);
   font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums;
   text-align: right; min-width: 92px;
 }
@@ -1270,20 +1377,23 @@ textarea { height: auto; padding: 10px 12px; }
 /* Interactive burndown */
 .cf-chart {
   display: block; width: 100%; border: 1px solid var(--hairline);
-  border-radius: 12px; padding: 4px; margin-bottom: 12px; background: var(--surface, transparent);
+  padding: 4px; margin-bottom: 12px; background: var(--surface, transparent);
 }
 .cf-layout { display: grid; grid-template-columns: 220px 1fr; gap: 16px; align-items: start; }
 @media (max-width: 760px) { .cf-layout { grid-template-columns: 1fr; } }
 
 .cf-tray {
   position: sticky; top: 12px; display: flex; flex-direction: column; gap: 8px;
-  padding: 12px; border: 1px solid var(--hairline); border-radius: 12px;
+  padding: 12px; border: 1px solid var(--hairline);
   background: var(--surface, transparent);
 }
-.cf-tray-head { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); }
+.cf-tray-head {
+  font-family: var(--font-console);
+  font-size: 11px; text-transform: uppercase; letter-spacing: var(--tracking-wide); color: var(--text-dim);
+}
 .cf-card {
   display: flex; align-items: center; gap: 8px; padding: 8px 10px;
-  border: 1px solid var(--hairline); border-radius: 10px; cursor: grab;
+  border: 1px solid var(--hairline); cursor: grab;
   background: var(--bg, transparent); font-size: 13px;
 }
 .cf-card:active { cursor: grabbing; }
@@ -1303,21 +1413,26 @@ textarea { height: auto; padding: 10px 12px; }
 
 .cf-add {
   border: 1px dashed var(--hairline); background: none; color: var(--text-dim);
-  border-radius: 10px; padding: 8px; cursor: pointer; font-size: 13px;
+  padding: 8px; cursor: pointer; font-size: 13px;
 }
 .cf-add:hover { color: var(--text); border-color: var(--accent); }
-.cf-add-form { display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--hairline); border-radius: 10px; }
+.cf-add-form { display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--hairline); }
 .cf-add-form input { width: 100%; }
 .cf-toggle {
   border: 1px solid var(--hairline); background: none; color: var(--text-dim);
-  border-radius: 8px; padding: 0 8px; cursor: pointer; white-space: nowrap;
+  padding: 0 8px; cursor: pointer; white-space: nowrap;
 }
 .cf-toggle.on { color: var(--good); border-color: var(--good); }
 
 /* Emergency runway card */
 .runway-card { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .runway-num { text-align: right; white-space: nowrap; }
-.runway-num .big { font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.runway-num .big {
+  font-family: var(--font-display);
+  font-variation-settings: var(--font-display-axes);
+  font-size: 30px; font-weight: 600; font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-display);
+}
 .runway-num .big.good { color: var(--accent); }
 .runway-num .big.warn { color: var(--warn); }
 
@@ -1326,19 +1441,19 @@ textarea { height: auto; padding: 10px 12px; }
 .trend-col { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; }
 .trend-stack {
   flex: 1; width: 100%; max-width: 56px; display: flex; flex-direction: column-reverse;
-  justify-content: flex-start; border-radius: 6px 6px 0 0; overflow: hidden;
+  justify-content: flex-start; overflow: hidden;
   background: var(--hairline); min-height: 2px;
 }
 .trend-seg { width: 100%; transition: height .2s ease; }
-.trend-total { font-size: 11px; font-variant-numeric: tabular-nums; color: var(--text-dim); margin-top: 4px; }
+.trend-total { font-family: var(--font-console); font-size: 11px; font-variant-numeric: tabular-nums; color: var(--text-dim); margin-top: 4px; }
 /* Six columns of "$1,234.56" do not fit across a phone. Both figures are in
    the markup and the responsive block at the foot of this file swaps which one
    shows, so the desktop chart keeps the exact amount. */
 .trend-total.compact { display: none; }
-.trend-label { font-size: 11px; color: var(--text-mute); text-transform: uppercase; letter-spacing: .04em; }
+.trend-label { font-family: var(--font-console); font-size: 11px; color: var(--text-mute); text-transform: uppercase; letter-spacing: var(--tracking-wide); }
 .trend-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; }
 .trend-key { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-dim); }
-.trend-dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.trend-dot { width: 10px; height: 10px; display: inline-block; }
 
 /* Paydays editor (Settings) */
 .payday-row { display: flex; align-items: center; gap: 10px; }
@@ -1346,56 +1461,24 @@ textarea { height: auto; padding: 10px 12px; }
 .payday-row .pd-amt { width: 120px; }
 
 /* ============================================================
-   RONIN SYSTEMS — mode overrides (Syne words / JetBrains-Mono figures),
-   floating nav dock, top-bar brand lockup, centered month switcher.
-   Appended last so these win over the base rules above.
+   BRAND LOCKUP, MONTH SWITCHER, NAV DOCK
+   The floating nav dock, top-bar brand lockup, and the centered
+   month switcher. This is now the one design — no mode overrides.
    ============================================================ */
-[data-mode="ronin"] .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
-
-/* Budget Console is uniformly sharp-cornered. Square everything; slider
-   thumbs use ::-webkit pseudo-elements so they stay round on their own. */
-[data-mode="ronin"] *,
-[data-mode="ronin"] *::before,
-[data-mode="ronin"] *::after { border-radius: 0 !important; }
-
-/* Figures → mono, words/headings stay Syne */
-[data-mode="ronin"] .hero-unassigned .big-num { font-family: var(--font-num); font-weight: 600; font-size: 60px; letter-spacing: -0.02em; }
-[data-mode="ronin"] .hero-unassigned .big-num.good { color: var(--text); }
-[data-mode="ronin"] .hero-unassigned .big-num.warn { color: var(--accent); }
-[data-mode="ronin"] .hero-unassigned .big-num.bad  { color: var(--accent); }
-[data-mode="ronin"] .hero-tile .num-big { font-family: var(--font-num); font-weight: 600; }
-[data-mode="ronin"] .metric-row .val { font-family: var(--font-num); font-weight: 700; font-size: 18px; }
-[data-mode="ronin"] .fund-row .assigned,
-[data-mode="ronin"] .fund-row .balance,
-[data-mode="ronin"] .fund-row .assign-button,
-[data-mode="ronin"] .fund-row .assign-edit { font-family: var(--font-num); font-weight: 600; font-size: 14.5px; }
-[data-mode="ronin"] .goal-card .amount-row .big { font-family: var(--font-num); font-weight: 600; }
-[data-mode="ronin"] .goal-card .name { font-weight: 600; }
-[data-mode="ronin"] .fd-hero .stat .val,
-[data-mode="ronin"] .plan-sticky .big,
-[data-mode="ronin"] .amount-input,
-[data-mode="ronin"] .tx-row .amount,
-[data-mode="ronin"] .acct-card .bal,
-[data-mode="ronin"] .txcard .amount { font-family: var(--font-num); font-weight: 600; }
-/* real-app figures that used the display font */
-[data-mode="ronin"] .tomove-head .amt,
-[data-mode="ronin"] .tomove-row .amt,
-[data-mode="ronin"] .runway-num .big,
-[data-mode="ronin"] .cf-bal,
-[data-mode="ronin"] .cf-date .cf-dn { font-family: var(--font-num); font-weight: 600; }
-
-/* Headings */
-[data-mode="ronin"] .sec-head h2 { font-weight: 700; }
-[data-mode="ronin"] .card .hd h3 { font-weight: 600; font-style: normal; }
-[data-mode="ronin"] .topbar .crumb { font-weight: 700; font-size: 19px; letter-spacing: -0.01em; font-style: normal; }
-[data-mode="ronin"] .eyebrow { font-size: 10px; letter-spacing: 0.2em; font-weight: 600; color: var(--text-dim); }
 
 /* Brand lockup (in the top bar) */
 .topbar .brand { display: flex; align-items: center; gap: 11px; }
 .topbar .brand .mark { width: 42px; height: 42px; object-fit: contain; background: transparent; display: block; }
 .topbar .brand .wordmark { display: flex; flex-direction: column; }
-.topbar .brand .wm-name { font-family: var(--font-display); font-weight: 700; font-size: 16px; letter-spacing: -0.01em; color: var(--text); line-height: 1; }
-.topbar .brand .wm-by { font-size: 8px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent); font-weight: 600; margin-top: 5px; }
+.topbar .brand .wm-name {
+  font-family: var(--font-display);
+  font-variation-settings: var(--font-display-axes);
+  font-weight: 600; font-size: 16px; letter-spacing: var(--tracking-display); color: var(--text); line-height: 1;
+}
+.topbar .brand .wm-by {
+  font-family: var(--font-console);
+  font-size: 8px; letter-spacing: var(--tracking-console); text-transform: uppercase; color: var(--accent); font-weight: 600; margin-top: 5px;
+}
 
 /* Centered, larger month switcher (topbar is sticky → anchors absolute child) */
 .topbar .monthsw {
@@ -1403,11 +1486,10 @@ textarea { height: auto; padding: 10px 12px; }
   left: 50%; top: 50%;
   transform: translate(-50%, -50%);
   height: 44px;
-  border-radius: var(--r-md);
 }
 .topbar .monthsw .label {
-  font-family: var(--font-display);
-  font-size: 16px; font-weight: 600;
+  font-family: var(--font-console);
+  font-size: 15px; font-weight: 500;
   min-width: 180px; padding: 0 22px; letter-spacing: 0.01em;
 }
 .topbar .monthsw button { padding: 0 14px; }
@@ -1435,11 +1517,11 @@ textarea { height: auto; padding: 10px 12px; }
   display: flex; align-items: center; gap: 8px;
   padding: 9px 14px;
   color: var(--text-dim);
-  font-family: var(--font-sans);
-  font-size: 13px; font-weight: 500;
+  font-family: var(--font-console);
+  font-size: 12.5px; font-weight: 500;
   white-space: nowrap;
   position: relative;
-  transition: color .12s, background .12s;
+  transition: color var(--duration-fast) var(--ease), background var(--duration-fast) var(--ease);
 }
 .dock .dockitem .ico { width: 17px; height: 17px; opacity: .9; position: relative; }
 .dock .dockitem span { position: relative; }
@@ -1458,7 +1540,7 @@ textarea { height: auto; padding: 10px 12px; }
 .dock .dockitem .badge {
   background: var(--accent-fade); color: var(--accent-2);
   border: 1px solid var(--accent-border);
-  font-family: var(--font-num); font-size: 11px; font-weight: 500;
+  font-family: var(--font-console); font-size: 11px; font-weight: 500;
   padding: 1px 6px; margin-left: 2px; position: relative;
 }
 
@@ -1466,8 +1548,8 @@ textarea { height: auto; padding: 10px 12px; }
    RESPONSIVE
 
    One place for every width- and pointer-conditional rule, at the foot of the
-   file so it outranks the `[data-mode="ronin"]` overrides above without
-   needing to repeat their specificity for every property.
+   file so it outranks the base rules above without needing to repeat their
+   specificity for every property.
 
    Three steps, and each earns its keep:
      ≤ 1080px  tablet — the two-up hero and the four-up metric strip stop fitting
@@ -1597,8 +1679,7 @@ textarea { height: auto; padding: 10px 12px; }
   /* --- hero ------------------------------------------------------------ */
   .hero { gap: 12px; margin-bottom: 18px; }
   .hero-unassigned { padding: 22px var(--pad-card) 20px; }
-  .hero-unassigned .big-num,
-  [data-mode="ronin"] .hero-unassigned .big-num { font-size: clamp(40px, 13vw, 60px); }
+  .hero-unassigned .big-num { font-size: clamp(40px, 13vw, 60px); }
   .hero-unassigned .sub { max-width: none; }
   .hero-unassigned .pill-row .btn { flex: 1 1 auto; }
   .hero-side { gap: 12px; }
@@ -1699,7 +1780,6 @@ textarea { height: auto; padding: 10px 12px; }
     width: 36px; height: 4px;
     margin: 0 auto 14px;
     background: var(--border-2);
-    border-radius: 99px;
   }
   .modal h2 { font-size: clamp(20px, 6vw, 26px); }
   .modal .actions { margin-top: 14px; }

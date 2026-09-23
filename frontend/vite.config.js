@@ -12,8 +12,8 @@ export default defineConfig({
         name: 'Budget',
         short_name: 'Budget',
         description: 'Fund-based personal budget',
-        theme_color: '#0f1115',
-        background_color: '#0f1115',
+        theme_color: '#0d0d0f',
+        background_color: '#0d0d0f',
         display: 'standalone',
         start_url: '/',
         icons: [
