@@ -1,7 +1,10 @@
 /*
  * The three self-hosted faces. Files live in /public/fonts with their licences
- * beside them. Everything is woff2 and latin-subset; `swap` throughout so a
- * blocking font never holds up a screen that is mostly text and figures.
+ * beside them; see DESIGN.md for why these three and nothing else.
+ *
+ * Everything is woff2 and latin-subset. `swap` throughout: the fallback stack
+ * is picked to be close enough in metrics that the swap is not a lurch, and a
+ * blocking font is never worth it on a site that is mostly text.
  */
 
 /* ── Editorial: ET Book (MIT) ──────────────────────────────────────────────
@@ -34,7 +37,7 @@
 
 /* ── Display: Fraunces (OFL) ───────────────────────────────────────────────
    One variable file covering 100–900. The opsz/SOFT/WONK axes are pinned by
-   --font-display-axes in styles.css rather than left at their defaults, which
+   --font-display-axes in globals.css rather than left at their defaults, which
    would give us the small-optical-size, wonky cut. Display sizes only. */
 
 @font-face {

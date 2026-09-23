@@ -10,6 +10,7 @@ import NetWorth from './views/NetWorth'
 import { thisMonth, shiftMonth } from './components/MonthSelector'
 import { monthLabel } from './format'
 import { Icon } from './components/Icons'
+import SiteLife from './components/SiteLife'
 import { fmt } from './api'
 import { keys, useResource } from './resource'
 
@@ -42,13 +43,16 @@ function Shell() {
 
   return (
     <div className="app">
-      <NavDock />
-      <main className="main">
-        <Topbar month={month} setMonth={setMonth} />
-        <div className="main-inner">
-          <Outlet context={{ month, setMonth }} />
-        </div>
-      </main>
+      <SiteLife />
+      <div className="app-layer">
+        <NavDock />
+        <main className="main">
+          <Topbar month={month} setMonth={setMonth} />
+          <div className="main-inner">
+            <Outlet context={{ month, setMonth }} />
+          </div>
+        </main>
+      </div>
     </div>
   )
 }
