@@ -44,6 +44,7 @@ services:
       ENABLE_SCHEDULER: "1"   # daily Plaid sync at 06:00 — see app/main.py
       TZ: ${TZ:-America/Chicago}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       PLAID_CLIENT_ID: ${PLAID_CLIENT_ID:-}
       PLAID_SECRET: ${PLAID_SECRET:-}
       PLAID_ENV: ${PLAID_ENV:-sandbox}
