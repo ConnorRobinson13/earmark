@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { api, fmt } from '../api'
 import { keys, useInvalidate, useResource, writes } from '../resource'
@@ -10,9 +11,12 @@ export default function FundDetail() {
   const invalidate = useInvalidate()
   const fundRes = useResource(keys.fund(id))
   const txnsRes = useResource(keys.fundTransactions(id))
+  const fundsRes = useResource(keys.funds())
+  const [actionErr, setActionErr] = useState(null)
 
   const fund = fundRes.data
   const txns = txnsRes.data
+  const funds = fundsRes.data
 
   async function del(txId) {
     if (!confirm('Delete this transaction?')) return
@@ -20,9 +24,29 @@ export default function FundDetail() {
     invalidate(writes.ledger)
   }
 
-  const error = fundRes.error || txnsRes.error
+  // Re-tag a transaction to another fund. The amount leaves this fund and lands
+  // on the destination; both balances re-derive on the refetch `writes.ledger`
+  // triggers. A rejected destination surfaces rather than silently no-op'ing.
+  async function move(txId, fundId) {
+    setActionErr(null)
+    try {
+      await api.transactions.move(txId, Number(fundId))
+      invalidate(writes.ledger)
+    } catch (e) {
+      setActionErr(e)
+    }
+  }
+
+  const error = fundRes.error || txnsRes.error || fundsRes.error
   if (error) return <ErrorCard error={error} />
-  if (!fund || !txns) return <div className="muted">Loading…</div>
+  if (!fund || !txns || !funds) return <div className="muted">Loading…</div>
+
+  // Only ordinary expense/income rows move between funds; assignment and
+  // transfer legs are double-entry and must stay balanced. Destinations are the
+  // other active funds (archived funds are already filtered out of the list).
+  const canMove = (t) =>
+    (t.type === 'expense' || t.type === 'income') && !t.linked_transaction_id
+  const destFunds = funds.filter(f => f.id !== fund.id)
 
   const balance = fund.balance
   const spent = fund.net_spent_this_month
@@ -80,6 +104,8 @@ export default function FundDetail() {
         <span className="sub">{txns.length} transaction{txns.length === 1 ? '' : 's'}</span>
       </div>
 
+      {actionErr && <ErrorCard error={actionErr} />}
+
       {txns.length === 0 ? (
         <div className="card muted">No transactions yet.</div>
       ) : (
@@ -98,6 +124,17 @@ export default function FundDetail() {
                   <div className={`amount ${isIncome ? 'income' : 'outflow'}`}>
                     {n >= 0 ? '+' : ''}{fmt(n)}
                   </div>
+                  {canMove(t) && destFunds.length > 0 && (
+                    <select className="fd-move-select"
+                      aria-label={`Move transaction ${t.merchant || t.type} ${t.date} to another fund`}
+                      value=""
+                      onChange={(e) => { if (e.target.value) move(t.id, e.target.value) }}>
+                      <option value="">Move to…</option>
+                      {destFunds.map(f => (
+                        <option key={f.id} value={f.id}>{f.name}</option>
+                      ))}
+                    </select>
+                  )}
                   <button className="btn ghost sm" title="Delete"
                     aria-label={`Delete transaction ${t.merchant || t.type} ${t.date}`}
                     onClick={() => del(t.id)}>

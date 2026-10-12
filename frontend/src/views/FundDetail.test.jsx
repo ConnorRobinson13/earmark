@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest'
-import { screen } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { renderApp, fund, shellRoutes, SHELL_KEYS } from '../test/renderApp'
 import { ApiError, keys } from '../resource'
+import { api } from '../api'
 
 const GROCERIES = fund({
   id: 7,
@@ -18,14 +19,19 @@ const TXNS = [
   { id: 102, type: 'expense', amount: '-412.35', date: '2026-08-03', merchant: 'Trader Joes', notes: 'weekly shop', fund_id: 7, linked_transaction_id: null, plaid_transaction_id: null, created_at: '2026-08-03T18:00:00' },
 ]
 
+const DINING = fund({ id: 8, name: 'Dining', category: 'Food' })
+
 function routes(overrides = {}) {
   return {
     ...shellRoutes(),
     [keys.fund('7')]: GROCERIES,
     [keys.fundTransactions('7')]: TXNS,
+    [keys.funds()]: [GROCERIES, DINING],
     ...overrides,
   }
 }
+
+afterEach(() => vi.restoreAllMocks())
 
 describe('FundDetail', () => {
   it('renders against a stub adapter with no backend running', async () => {
@@ -47,12 +53,56 @@ describe('FundDetail', () => {
     expect(screen.getByText('-$412.35')).toBeTruthy()
   })
 
-  it('reads exactly the two keys it needs, on top of the shell’s', async () => {
+  it('reads exactly the keys it needs, on top of the shell’s', async () => {
     const { adapter } = renderApp(routes(), { route: '/funds/7' })
 
     await screen.findByRole('heading', { name: 'Groceries' })
     const own = adapter.requested.filter(k => !SHELL_KEYS.includes(k))
-    expect(own.sort()).toEqual([keys.fund('7'), keys.fundTransactions('7')].sort())
+    // The fund, its history, and the fund list that feeds the "move to" picker.
+    expect([...new Set(own)].sort()).toEqual(
+      [keys.fund('7'), keys.fundTransactions('7'), keys.funds()].sort(),
+    )
+  })
+
+  it('moves a transaction to another fund via the picker', async () => {
+    vi.spyOn(api.transactions, 'move').mockResolvedValue({})
+    renderApp(routes(), { route: '/funds/7' })
+
+    // The expense is movable; its picker offers the other fund but not this one.
+    const select = await screen.findByRole('combobox', {
+      name: /Move transaction Trader Joes/,
+    })
+    const options = [...select.options].map(o => o.textContent)
+    expect(options).toEqual(['Move to…', 'Dining'])
+
+    fireEvent.change(select, { target: { value: '8' } })
+
+    await waitFor(() => expect(api.transactions.move).toHaveBeenCalledWith(102, 8))
+  })
+
+  it('does not offer a move picker on an assignment row', async () => {
+    renderApp(routes(), { route: '/funds/7' })
+
+    await screen.findByRole('heading', { name: 'Groceries' })
+    // The +500 assignment leg is double-entry — no picker on it, so the only
+    // combobox on the page is the expense's.
+    expect(screen.getAllByRole('combobox').length).toBe(1)
+  })
+
+  it('surfaces the server message when a move is rejected', async () => {
+    vi.spyOn(api.transactions, 'move').mockRejectedValue(
+      new ApiError(400, { detail: 'destination fund does not exist or is archived' }, 'move'),
+    )
+    renderApp(routes(), { route: '/funds/7' })
+
+    const select = await screen.findByRole('combobox', {
+      name: /Move transaction Trader Joes/,
+    })
+    fireEvent.change(select, { target: { value: '8' } })
+
+    expect(
+      await screen.findByText('destination fund does not exist or is archived'),
+    ).toBeTruthy()
   })
 
   it('shows the server message when the fund is missing', async () => {
