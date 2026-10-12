@@ -30,6 +30,7 @@ function routes(overrides = {}) {
     ...shellRoutes(),
     [keys.inbox()]: ITEMS,
     [keys.funds()]: FUNDS,
+    [keys.autosortStatus()]: { enabled: true, model: 'test/model' },
     ...overrides,
   }
 }
@@ -60,7 +61,7 @@ describe('Inbox', () => {
     // because both spell the key the same way.
     expect(adapter.requested.filter(k => k === keys.inbox()).length).toBe(1)
     const own = adapter.requested.filter(k => !SHELL_KEYS.includes(k))
-    expect([...new Set(own)]).toEqual([keys.funds()])
+    expect([...new Set(own)].sort()).toEqual([keys.autosortStatus(), keys.funds()].sort())
   })
 
   it('drops the nav badge when an item is approved, with no dashboard mounted', async () => {
