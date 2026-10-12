@@ -43,4 +43,8 @@ export const keys = {
     + `&contribution_growth_pct=${p.contributionGrowthPct}`
     + `&inflation_pct=${p.inflationPct}`,
   plaidItems: () => '/plaid/items',
+  // Whether AI auto-sort is configured on the server. A read, so the inbox can
+  // show the action disabled when the feature is off without POSTing to an
+  // endpoint that would 503.
+  autosortStatus: () => '/autosort/status',
 }

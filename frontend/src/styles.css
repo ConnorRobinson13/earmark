@@ -967,6 +967,45 @@ textarea { height: auto; padding: 10px 12px; }
 .inbox-empty h2 { font-family: var(--font-display); font-weight: 400; margin: 0 0 6px; font-size: 22px; }
 .inbox-empty p { color: var(--text-dim); margin: 0 0 18px; }
 
+/* Auto-sort: the AI review action above the inbox, and its review modal. */
+.inbox-head {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
+  margin-bottom: 16px;
+}
+.autosort-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.autosort-off { color: var(--text-dim); }
+.autosort-intro { margin: 0 0 14px; }
+.autosort-list {
+  list-style: none; margin: 0 0 4px; padding: 0;
+  max-height: 340px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.autosort-row > label {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 4px 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-md);
+  background: var(--bg);
+  cursor: pointer;
+}
+.autosort-row input { grid-row: 1 / 3; align-self: center; }
+.autosort-row .as-merchant { font-weight: 500; font-size: 14px; }
+.autosort-row .as-meta {
+  grid-column: 2; font-size: 12px; color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.autosort-row .as-fund {
+  grid-column: 3; grid-row: 1 / 3;
+  display: flex; align-items: center; gap: 4px;
+  font-size: 13px; font-weight: 600; color: var(--accent);
+  justify-self: end; text-align: right;
+}
+.autosort-row.off > label { opacity: .5; }
+.autosort-row.off .as-fund { color: var(--text-dim); }
+
 /* ============================================================
    QUICK ADD / MODAL
    ============================================================ */

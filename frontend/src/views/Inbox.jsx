@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { api, fmt } from '../api'
 import { keys, useInvalidate, useResource, writes } from '../resource'
 import ErrorCard from '../components/ErrorCard'
+import AutosortPanel from '../components/AutosortPanel'
 import { Icon } from '../components/Icons'
 
 export default function Inbox() {
@@ -39,6 +40,9 @@ export default function Inbox() {
   if (!item) {
     return (
       <div className="inbox-wrap">
+        <div className="inbox-head">
+          <AutosortPanel />
+        </div>
         <div className="inbox-empty">
           <div className="icon"><Icon name="check" size={28} /></div>
           <h2>All caught up</h2>
@@ -94,6 +98,9 @@ export default function Inbox() {
 
   return (
     <div className="inbox-wrap">
+      <div className="inbox-head">
+        <AutosortPanel />
+      </div>
       <div className="inbox-progress">
         <div className="bar"><div style={{ width: `${progressPct}%` }} /></div>
         <div className="count">{done + 1} / {pending.length}</div>
