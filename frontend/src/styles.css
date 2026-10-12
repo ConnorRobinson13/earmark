@@ -5,7 +5,7 @@
    ========================================================== */
 
 :root {
-  /* RONIN SYSTEMS — Budget Console: ink ramp, crimson accent,
+  /* Budget Console: ink ramp, crimson accent,
      Hanken Grotesk body / Syne display / JetBrains Mono figures. */
   --bg:        #080809;   /* ink-950 — app backdrop */
   --bg-2:      #0d0d0f;   /* ink-900 — base surface / topbar / drawer */
@@ -1346,7 +1346,7 @@ textarea { height: auto; padding: 10px 12px; }
 .payday-row .pd-amt { width: 120px; }
 
 /* ============================================================
-   RONIN SYSTEMS — mode overrides (Syne words / JetBrains-Mono figures),
+   Mode overrides (Syne words / JetBrains-Mono figures),
    floating nav dock, top-bar brand lockup, centered month switcher.
    Appended last so these win over the base rules above.
    ============================================================ */
