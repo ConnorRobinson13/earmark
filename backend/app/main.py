@@ -11,6 +11,7 @@ from .services import plaid_sync
 from .routers import (
     accounts,
     admin,
+    autosort,
     bulk,
     cashflow,
     dashboard,
@@ -96,6 +97,7 @@ app.include_router(inbox.router)
 app.include_router(plaid.router)
 app.include_router(admin.router)
 app.include_router(bulk.router)
+app.include_router(autosort.router)
 app.include_router(settlements.router)
 app.include_router(monthly_meta.router)
 app.include_router(networth.router)

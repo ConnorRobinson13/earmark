@@ -18,7 +18,7 @@ from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models import Transaction, TxType
+from ..models import Fund, Transaction, TxType
 
 
 def find_by_plaid_id(db: Session, plaid_transaction_id: str) -> Optional[Transaction]:
@@ -164,6 +164,47 @@ def post_transfer(
     debit.linked_transaction_id = credit.id
     db.flush()
     return debit, credit
+
+
+def move_transaction(
+    db: Session,
+    *,
+    txn_id: int,
+    fund_id: int,
+) -> Transaction:
+    """Re-tag an already-assigned transaction to a different fund.
+
+    Only `fund_id` changes: the amount, date, merchant, notes and Plaid id ride
+    along on the same row, so the transaction keeps its identity and no second
+    row is created. The old fund loses the amount and the new fund gains it, and
+    because every balance is the signed sum of a fund's rows (see
+    `balances.fund_balance`) both sides re-derive on the next read — nothing to
+    recompute here.
+
+    Guards the move rather than trusting the caller: a missing transaction is a
+    `LookupError` (→ 404) and every rejected destination is a `ValueError`
+    (→ 400) raised *before* anything is written, so a bad move leaves the row
+    untouched. Transfers and assignments are double-entry pairs whose two legs
+    must stay balanced, so a single-sided move of one is refused; this action is
+    for the ordinary expense/income rows the inbox and quick-add produce.
+    """
+    t = db.get(Transaction, txn_id)
+    if t is None:
+        raise LookupError("transaction not found")
+    if t.fund_id is None:
+        raise ValueError("transaction is not assigned to a fund")
+    if t.type in (TxType.transfer, TxType.assignment) or t.linked_transaction_id is not None:
+        raise ValueError("cannot move a transfer or assignment leg between funds")
+
+    dest = db.get(Fund, fund_id)
+    if dest is None or dest.archived_at is not None:
+        raise ValueError("destination fund does not exist or is archived")
+    if dest.id == t.fund_id:
+        raise ValueError("transaction is already in that fund")
+
+    t.fund_id = dest.id
+    db.flush()
+    return t
 
 
 def post_assignment(

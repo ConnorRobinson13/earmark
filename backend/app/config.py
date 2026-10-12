@@ -13,6 +13,13 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-sonnet-4-6"
 
+    # OpenRouter powers AI-assisted transaction auto-sorting. Read from the
+    # OPENROUTER_API_KEY environment variable; left empty the feature is gated
+    # off (no outbound call is ever made). The model id is pinned rather than
+    # user-configurable so the behaviour is reproducible.
+    openrouter_api_key: str = ""
+    openrouter_model: str = "typesafe/jev-router"
+
     plaid_client_id: str = ""
     plaid_secret: str = ""
     plaid_env: str = "sandbox"

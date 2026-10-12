@@ -35,6 +35,7 @@ export const api = {
     assign: (body) => req('/transactions/assign', { method: 'POST', body: JSON.stringify(body) }),
     delete: (id) => req(`/transactions/${id}`, { method: 'DELETE' }),
     update: (id, body) => req(`/transactions/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    move: (id, fundId) => req(`/transactions/${id}/move`, { method: 'POST', body: JSON.stringify({ fund_id: fundId }) }),
   },
 
   accounts: {

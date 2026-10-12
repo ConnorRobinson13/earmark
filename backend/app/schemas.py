@@ -97,6 +97,12 @@ class AssignmentCreate(BaseModel):
     notes: Optional[str] = None
 
 
+class TransactionMove(BaseModel):
+    """Re-tag an already-assigned transaction to a different fund."""
+
+    fund_id: int
+
+
 class QuickAddCreate(BaseModel):
     """Convenience endpoint: positive amount, type=expense by default.
 
@@ -195,3 +201,43 @@ class SuggestResponse(BaseModel):
     fund_id: Optional[int]
     fund_name: Optional[str]
     source: str  # "vector" | "llm" | "none"
+
+
+# ---------- AI auto-sort ----------
+
+class AutosortStatus(BaseModel):
+    enabled: bool  # whether OPENROUTER_API_KEY is configured
+    model: str     # the pinned OpenRouter model id
+
+
+class AutosortSuggestion(BaseModel):
+    """A proposed fund for one unassigned transaction. Advisory only — no
+    assignment changes until the caller confirms it."""
+
+    transaction_id: int
+    merchant: str
+    amount: Decimal
+    date: date
+    current_fund_id: Optional[int] = None
+    suggested_fund_id: int
+    suggested_fund_name: str
+
+
+class AutosortSuggestResponse(BaseModel):
+    suggestions: list[AutosortSuggestion]
+
+
+class AutosortChange(BaseModel):
+    transaction_id: int
+    fund_id: int
+
+
+class AutosortConfirmRequest(BaseModel):
+    """The explicit confirmation step: the subset of suggestions the user
+    accepted. Nothing is written for a transaction that isn't listed here."""
+
+    changes: list[AutosortChange]
+
+
+class AutosortConfirmResponse(BaseModel):
+    updated: list[TransactionOut]

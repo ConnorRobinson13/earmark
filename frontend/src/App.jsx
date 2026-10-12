@@ -71,8 +71,6 @@ function NavDock() {
   ]
   return (
     <nav className="dock" aria-label="Main">
-      <img className="dock-mark" src="/assets/ronin-logomark-light.png" alt="Ronin Systems" />
-      <span className="dock-div" />
       {items.map(it => (
         <NavLink key={it.to} to={it.to} end={it.to === '/'}
           className={({ isActive }) => `dockitem ${isActive ? 'active' : ''}`}
