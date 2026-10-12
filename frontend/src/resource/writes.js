@@ -38,6 +38,14 @@ export const writes = {
   inboxRejected: ['/inbox'],
 
   /**
+   * Auto-sort assignments confirmed. Each change sets a posted expense's
+   * `fund_id`, so it lands in the ledger the same way a manual assignment does
+   * — the dashboard's unassigned figure, the funds' balances and the
+   * transaction lists all move.
+   */
+  autosort: LEDGER,
+
+  /**
    * Planned income for a month. The dashboard's plan-vs-actual cell is the
    * only reader — the trailing `?` keeps this off `/dashboard/trends`, which
    * charts past spend and cannot move when a target changes. Every dashboard

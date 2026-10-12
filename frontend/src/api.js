@@ -48,6 +48,18 @@ export const api = {
   suggest: (merchant, amount) =>
     req('/suggest', { method: 'POST', body: JSON.stringify({ merchant, amount }) }),
 
+  // AI auto-sort. `status` reports whether the server has the feature
+  // configured (the OpenRouter key lives entirely server-side, so the client
+  // never sees it). `suggestions` is read-only — it proposes funds but writes
+  // nothing — and `confirm` is the only call that applies assignments, and only
+  // the changes passed to it.
+  autosort: {
+    status: () => req('/autosort/status'),
+    suggestions: () => req('/autosort/suggestions', { method: 'POST' }),
+    confirm: (changes) =>
+      req('/autosort/confirm', { method: 'POST', body: JSON.stringify({ changes }) }),
+  },
+
   inbox: {
     list: () => req('/inbox'),
     approve: (id, fundId, asPaycheck = false) => req(`/inbox/${id}/approve`, {
