@@ -1429,7 +1429,6 @@ textarea { height: auto; padding: 10px 12px; }
   max-width: calc(100vw - 24px);
   overflow-x: auto;
 }
-.dock .dock-mark { height: 24px; margin: 0 8px 0 6px; flex: none; display: block; }
 .dock .dock-div { width: 1px; height: 26px; background: var(--border); margin: 0 4px; flex: none; }
 .dock .dockitem {
   display: flex; align-items: center; gap: 8px;
@@ -1560,7 +1559,7 @@ textarea { height: auto; padding: 10px 12px; }
     border-left: none; border-right: none; border-bottom: none;
     background: rgba(13,13,15,.96);
   }
-  .dock .dock-mark, .dock .dock-div { display: none; }
+  .dock .dock-div { display: none; }
   .dock .dockitem {
     flex: 1 1 0;
     flex-direction: column;
