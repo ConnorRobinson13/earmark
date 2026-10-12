@@ -155,6 +155,27 @@ def assign(body: schemas.AssignmentCreate, db: Session = Depends(get_db)):
     return credit
 
 
+@router.post("/{txn_id}/move", response_model=schemas.TransactionOut)
+def move_transaction(
+    txn_id: int, body: schemas.TransactionMove, db: Session = Depends(get_db)
+):
+    """Move an already-assigned transaction to a different fund.
+
+    Updates the single row in place — amount, date, merchant and Plaid id are
+    preserved — and rejects an invalid destination before committing, so a bad
+    request leaves the ledger exactly as it was.
+    """
+    try:
+        t = tx_svc.move_transaction(db, txn_id=txn_id, fund_id=body.fund_id)
+    except LookupError:
+        raise HTTPException(404, "transaction not found")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    db.commit()
+    db.refresh(t)
+    return t
+
+
 @router.delete("/{txn_id}", status_code=204)
 def delete_transaction(txn_id: int, db: Session = Depends(get_db)):
     t = db.get(Transaction, txn_id)

@@ -97,6 +97,12 @@ class AssignmentCreate(BaseModel):
     notes: Optional[str] = None
 
 
+class TransactionMove(BaseModel):
+    """Re-tag an already-assigned transaction to a different fund."""
+
+    fund_id: int
+
+
 class QuickAddCreate(BaseModel):
     """Convenience endpoint: positive amount, type=expense by default.
 
