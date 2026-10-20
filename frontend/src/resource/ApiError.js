@@ -12,8 +12,8 @@ export class ApiError extends Error {
    * @param {*} body parsed JSON body when the server sent JSON, else the raw text
    * @param {string} path request path, for context
    */
-  constructor(status, body, path) {
-    super(`${status || 'network'} ${path}`)
+  constructor(status, body, path, message = `${status || 'network'} ${path}`) {
+    super(message)
     this.name = 'ApiError'
     this.status = status
     this.body = body

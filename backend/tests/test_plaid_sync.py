@@ -16,13 +16,14 @@ from datetime import date
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from app import db as db_module
 from app.config import settings
 from app.models import Account, AccountType, PlaidInbox, PlaidItem
 from app.services import plaid_sync
 from app.services import transactions as tx_svc
-from app.services.plaid_client import SyncPage
+from app.services.plaid_client import PlaidApiError, SyncPage
 from stub_plaid import StubPlaidClient, plaid_account, plaid_transaction
 
 FLOOR = date(2026, 6, 1)
@@ -49,9 +50,11 @@ def _fixed_floor(monkeypatch):
     monkeypatch.setattr(settings, "plaid_sync_floor_date", FLOOR.isoformat())
 
 
-def seeded_item(db, *, access_token: str = "access-stub") -> PlaidItem:
+def seeded_item(
+    db, *, access_token: str = "access-stub", item_id: str = "item-stub"
+) -> PlaidItem:
     item = PlaidItem(
-        item_id="item-stub", access_token=access_token, institution_name="Stub Bank"
+        item_id=item_id, access_token=access_token, institution_name="Stub Bank"
     )
     db.add(item)
     db.commit()
@@ -99,7 +102,7 @@ def test_transactions_dated_before_the_floor_are_dropped(db):
     )
     seeded_item(db)
 
-    assert plaid_sync.run_sync(db, client) == 1
+    assert plaid_sync.run_sync(db, client).added == 1
     assert inbox_ids(db) == ["new"]
 
 
@@ -109,7 +112,7 @@ def test_a_transaction_on_the_floor_date_itself_is_kept(db):
     )
     seeded_item(db)
 
-    assert plaid_sync.run_sync(db, client) == 1
+    assert plaid_sync.run_sync(db, client).added == 1
     assert inbox_ids(db) == ["on-the-day"]
 
 
@@ -121,7 +124,7 @@ def test_an_unparseable_floor_date_lets_everything_through(db, monkeypatch):
     )
     seeded_item(db)
 
-    assert plaid_sync.run_sync(db, client) == 1
+    assert plaid_sync.run_sync(db, client).added == 1
 
 
 # ---------- deduplication ----------
@@ -134,7 +137,7 @@ def test_an_already_seen_transaction_is_not_added_twice(db):
     )
     item = seeded_item(db)
 
-    assert plaid_sync.run_sync(db, client) == 1
+    assert plaid_sync.run_sync(db, client).added == 1
 
     # Rewind the cursor so Plaid hands us the same page again.
     db.expire_all()
@@ -142,7 +145,7 @@ def test_an_already_seen_transaction_is_not_added_twice(db):
     item.cursor = None
     db.commit()
 
-    assert plaid_sync.run_sync(db, client) == 0
+    assert plaid_sync.run_sync(db, client).added == 0
     assert inbox_ids(db) == ["txn-1"]
 
 
@@ -154,7 +157,7 @@ def test_a_transaction_already_in_the_ledger_is_not_restaged(db):
         one_page(plaid_transaction("txn-1", txn_date=AFTER_FLOOR, account_id=CHECKING))
     )
     item = seeded_item(db)
-    assert plaid_sync.run_sync(db, client) == 1
+    assert plaid_sync.run_sync(db, client).added == 1
 
     # Approve it — then lose the inbox row the way a `removed` page does.
     inbox_row = db.scalar(select(PlaidInbox).where(PlaidInbox.plaid_transaction_id == "txn-1"))
@@ -173,7 +176,7 @@ def test_a_transaction_already_in_the_ledger_is_not_restaged(db):
     db.get(PlaidItem, item.id).cursor = None  # rewind, so Plaid replays the page
     db.commit()
 
-    assert plaid_sync.run_sync(db, client) == 0
+    assert plaid_sync.run_sync(db, client).added == 0
     assert inbox_ids(db) == []
 
 
@@ -190,7 +193,7 @@ def test_pending_transactions_are_skipped(db):
     )
     seeded_item(db)
 
-    assert plaid_sync.run_sync(db, client) == 1
+    assert plaid_sync.run_sync(db, client).added == 1
     assert inbox_ids(db) == ["posted-1"]
 
 
@@ -211,7 +214,7 @@ def test_investment_transactions_are_suppressed(db):
     )
     seeded_item(db)
 
-    assert plaid_sync.run_sync(db, client) == 1
+    assert plaid_sync.run_sync(db, client).added == 1
     assert inbox_ids(db) == ["groceries"]
 
 
@@ -236,7 +239,7 @@ def test_a_removed_transaction_deletes_its_inbox_row(db):
             )
         }
     )
-    assert plaid_sync.run_sync(db, reversal) == 0
+    assert plaid_sync.run_sync(db, reversal).added == 0
     assert inbox_ids(db) == []
 
     db.expire_all()
@@ -257,7 +260,7 @@ def test_a_removal_without_an_id_does_not_abandon_the_rest_of_the_page(db):
     )
     seeded_item(db)
 
-    assert plaid_sync.run_sync(db, client) == 1
+    assert plaid_sync.run_sync(db, client).added == 1
     assert inbox_ids(db) == ["txn-1"]
 
 
@@ -267,7 +270,7 @@ def test_removing_an_unknown_transaction_is_harmless(db):
     )
     seeded_item(db)
 
-    assert plaid_sync.run_sync(db, client) == 0
+    assert plaid_sync.run_sync(db, client).added == 0
     assert inbox_ids(db) == []
 
 
@@ -290,7 +293,7 @@ def test_paging_follows_has_more_and_stores_the_final_cursor(db):
     )
     item = seeded_item(db)
 
-    assert plaid_sync.run_sync(db, client) == 2
+    assert plaid_sync.run_sync(db, client).added == 2
     assert inbox_ids(db) == ["p1", "p2"]
     db.expire_all()
     assert db.get(PlaidItem, item.id).cursor == "cursor-2"
@@ -309,15 +312,112 @@ def test_a_stored_cursor_is_where_the_next_sync_resumes(db):
     item.cursor = "cursor-1"
     db.commit()
 
-    assert plaid_sync.run_sync(db, client) == 1
+    assert plaid_sync.run_sync(db, client).added == 1
     assert ("sync_transactions", "cursor-1") in client.calls
 
 
 def test_no_linked_items_means_no_plaid_calls(db):
     client = stub_with(one_page())
 
-    assert plaid_sync.run_sync(db, client) == 0
+    assert plaid_sync.run_sync(db, client).added == 0
     assert client.calls == []
+
+
+def test_plaid_transport_issue_does_not_prevent_later_items_from_syncing(db):
+    seeded_item(db, access_token="access-offline", item_id="item-offline")
+    seeded_item(db, access_token="access-healthy", item_id="item-healthy")
+    client = stub_with(
+        one_page(
+            plaid_transaction("saved-by-healthy-item", txn_date=AFTER_FLOOR, account_id=CHECKING)
+        )
+    )
+    original_accounts = client.accounts
+
+    def accounts(access_token):
+        if access_token == "access-offline":
+            raise PlaidApiError(
+                error_code="PLAID_TRANSPORT_ERROR",
+                error_message="Plaid request could not be completed",
+            )
+        return original_accounts(access_token)
+
+    client.accounts = accounts
+
+    result = plaid_sync.run_sync(db, client)
+
+    assert result.added == 1
+    assert len(result.issues) == 1
+    assert result.issues[0].error_code == "PLAID_TRANSPORT_ERROR"
+    assert inbox_ids(db) == ["saved-by-healthy-item"]
+
+
+def test_database_failure_on_one_item_does_not_prevent_later_items_from_syncing(db, monkeypatch):
+    seeded_item(db, access_token="access-db-failure", item_id="item-db-failure")
+    seeded_item(db, access_token="access-healthy", item_id="item-healthy")
+    client = stub_with(
+        one_page(
+            plaid_transaction("saved-after-db-failure", txn_date=AFTER_FLOOR, account_id=CHECKING)
+        )
+    )
+    original_sync_item = plaid_sync._sync_item
+
+    def sync_item(session, plaid_client, item, floor):
+        if item.access_token == "access-db-failure":
+            raise IntegrityError("insert", {}, Exception("constraint violation"))
+        return original_sync_item(session, plaid_client, item, floor)
+
+    monkeypatch.setattr(plaid_sync, "_sync_item", sync_item)
+
+    result = plaid_sync.run_sync(db, client)
+
+    assert result.added == 1
+    assert len(result.issues) == 1
+    assert result.issues[0].error_code == "DATABASE_ERROR"
+    assert inbox_ids(db) == ["saved-after-db-failure"]
+
+
+def test_unexpected_failure_on_later_item_keeps_prior_item_committed(db):
+    """A non-Plaid failure must not roll back an earlier Item's completed sync."""
+    seeded_item(db, access_token="access-healthy")
+    db.add(
+        PlaidItem(
+            item_id="item-fails-later",
+            access_token="access-fails",
+            institution_name="Failure Bank",
+        )
+    )
+    db.commit()
+
+    client = stub_with(
+        one_page(
+            plaid_transaction("saved-before-failure", txn_date=AFTER_FLOOR, account_id=CHECKING)
+        )
+    )
+    original_accounts = client.accounts
+
+    def accounts(access_token):
+        if access_token == "access-fails":
+            raise RuntimeError("unexpected transport failure")
+        return original_accounts(access_token)
+
+    client.accounts = accounts
+
+    with pytest.raises(RuntimeError, match="unexpected transport failure"):
+        plaid_sync.run_sync(db, client)
+
+    verify = db_module.new_session()
+    try:
+        assert inbox_ids(verify) == ["saved-before-failure"]
+        cursors = {
+            item.item_id: item.cursor
+            for item in verify.scalars(select(PlaidItem)).all()
+        }
+        assert cursors == {
+            "item-stub": "cursor-1",
+            "item-fails-later": None,
+        }
+    finally:
+        verify.close()
 
 
 # ---------- balances ----------

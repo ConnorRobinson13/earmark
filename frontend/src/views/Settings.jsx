@@ -265,19 +265,40 @@ function PlaidSection() {
   const invalidate = useInvalidate()
   const [status, setStatus] = useState('')
   const [syncing, setSyncing] = useState(false)
+  const [syncIssues, setSyncIssues] = useState([])
 
   const items = data || []
   // A 400 saying the credentials are missing is a setup step to explain, not a
   // failure to report — PlaidConnect renders the instructions instead.
-  const hasCreds = !(error?.status === 400 && String(error.detail).includes('Plaid credentials not configured'))
+  const missingCreds = error?.body?.detail?.code === 'PLAID_CREDENTIALS_NOT_CONFIGURED'
+    || error?.detail?.code === 'PLAID_CREDENTIALS_NOT_CONFIGURED'
+    || (error?.status === 400 && error?.detail === 'Plaid credentials not configured')
+  const hasCreds = !missingCreds
+
+  function reportSync(result, prefix = '') {
+    const issues = result.issues || []
+    setSyncIssues(issues)
+    const added = `Added ${result.added} transaction${result.added === 1 ? '' : 's'} to inbox`
+    const attention = issues.length
+      ? `; ${issues.length} institution${issues.length === 1 ? '' : 's'} need${issues.length === 1 ? 's' : ''} attention`
+      : ''
+    setStatus(`${prefix}${added}${attention}`)
+    invalidate(writes.plaid)
+  }
 
   async function sync() {
     setSyncing(true); setStatus('')
     try {
-      const r = await api.plaid.sync()
-      setStatus(`Added ${r.added} transaction${r.added === 1 ? '' : 's'} to inbox`)
-      invalidate(writes.plaid)
+      reportSync(await api.plaid.sync())
     } catch (e) { setStatus(String(e)) }
+    finally { setSyncing(false) }
+  }
+
+  async function syncAfterReconnect() {
+    setSyncing(true); setStatus('Reconnected. Syncing transactions…')
+    try {
+      reportSync(await api.plaid.sync(), 'Reconnected. ')
+    } catch (e) { setStatus(`Reconnected, but sync failed: ${String(e)}`) }
     finally { setSyncing(false) }
   }
 
@@ -311,7 +332,12 @@ function PlaidSection() {
         </span>
       </div>
       {status && <div className="small muted">{status}</div>}
-      <LinkedItems items={items} onUnlink={unlink} />
+      <LinkedItems
+        items={items}
+        onUnlink={unlink}
+        issues={syncIssues}
+        onReconnected={syncAfterReconnect}
+      />
     </div>
   )
 }

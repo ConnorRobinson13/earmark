@@ -32,7 +32,9 @@ class StubPlaidClient:
         pages: dict[str, SyncPage] | None = None,
         linked_item: LinkedItem | None = None,
         link_token: str = "link-sandbox-stub",
+        update_link_token: str = "link-update-stub",
         accounts_error: Exception | None = None,
+        item_errors: dict[str, str | Exception] | None = None,
     ) -> None:
         self.accounts_response = accounts if accounts is not None else []
         self.pages = pages or {}
@@ -40,12 +42,18 @@ class StubPlaidClient:
             item_id="item-stub", access_token="access-stub"
         )
         self.link_token = link_token
+        self.update_link_token = update_link_token
         self.accounts_error = accounts_error
+        self.item_errors = item_errors or {}
         self.calls: list[tuple[str, Any]] = []
 
     def create_link_token(self) -> str:
         self.calls.append(("create_link_token", None))
         return self.link_token
+
+    def create_update_link_token(self, access_token: str) -> str:
+        self.calls.append(("create_update_link_token", access_token))
+        return self.update_link_token
 
     def exchange_public_token(self, public_token: str) -> LinkedItem:
         self.calls.append(("exchange_public_token", public_token))
@@ -56,6 +64,13 @@ class StubPlaidClient:
         if self.accounts_error is not None:
             raise self.accounts_error
         return list(self.accounts_response)
+
+    def item_error_code(self, access_token: str) -> str | None:
+        self.calls.append(("item_error_code", access_token))
+        error = self.item_errors.get(access_token)
+        if isinstance(error, Exception):
+            raise error
+        return error
 
     def sync_transactions(self, access_token: str, cursor: str) -> SyncPage:
         self.calls.append(("sync_transactions", cursor))
