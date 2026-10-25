@@ -1394,45 +1394,45 @@ textarea { height: auto; padding: 10px 12px; }
    floating nav dock, top-bar brand lockup, centered month switcher.
    Appended last so these win over the base rules above.
    ============================================================ */
-[data-mode="ronin"] .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+[data-mode="earmark"] .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
 
 /* Budget Console is uniformly sharp-cornered. Square everything; slider
    thumbs use ::-webkit pseudo-elements so they stay round on their own. */
-[data-mode="ronin"] *,
-[data-mode="ronin"] *::before,
-[data-mode="ronin"] *::after { border-radius: 0 !important; }
+[data-mode="earmark"] *,
+[data-mode="earmark"] *::before,
+[data-mode="earmark"] *::after { border-radius: 0 !important; }
 
 /* Figures → mono, words/headings stay Syne */
-[data-mode="ronin"] .hero-unassigned .big-num { font-family: var(--font-num); font-weight: 600; font-size: 60px; letter-spacing: -0.02em; }
-[data-mode="ronin"] .hero-unassigned .big-num.good { color: var(--text); }
-[data-mode="ronin"] .hero-unassigned .big-num.warn { color: var(--accent); }
-[data-mode="ronin"] .hero-unassigned .big-num.bad  { color: var(--accent); }
-[data-mode="ronin"] .hero-tile .num-big { font-family: var(--font-num); font-weight: 600; }
-[data-mode="ronin"] .metric-row .val { font-family: var(--font-num); font-weight: 700; font-size: 18px; }
-[data-mode="ronin"] .fund-row .assigned,
-[data-mode="ronin"] .fund-row .balance,
-[data-mode="ronin"] .fund-row .assign-button,
-[data-mode="ronin"] .fund-row .assign-edit { font-family: var(--font-num); font-weight: 600; font-size: 14.5px; }
-[data-mode="ronin"] .goal-card .amount-row .big { font-family: var(--font-num); font-weight: 600; }
-[data-mode="ronin"] .goal-card .name { font-weight: 600; }
-[data-mode="ronin"] .fd-hero .stat .val,
-[data-mode="ronin"] .plan-sticky .big,
-[data-mode="ronin"] .amount-input,
-[data-mode="ronin"] .tx-row .amount,
-[data-mode="ronin"] .acct-card .bal,
-[data-mode="ronin"] .txcard .amount { font-family: var(--font-num); font-weight: 600; }
+[data-mode="earmark"] .hero-unassigned .big-num { font-family: var(--font-num); font-weight: 600; font-size: 60px; letter-spacing: -0.02em; }
+[data-mode="earmark"] .hero-unassigned .big-num.good { color: var(--text); }
+[data-mode="earmark"] .hero-unassigned .big-num.warn { color: var(--accent); }
+[data-mode="earmark"] .hero-unassigned .big-num.bad  { color: var(--accent); }
+[data-mode="earmark"] .hero-tile .num-big { font-family: var(--font-num); font-weight: 600; }
+[data-mode="earmark"] .metric-row .val { font-family: var(--font-num); font-weight: 700; font-size: 18px; }
+[data-mode="earmark"] .fund-row .assigned,
+[data-mode="earmark"] .fund-row .balance,
+[data-mode="earmark"] .fund-row .assign-button,
+[data-mode="earmark"] .fund-row .assign-edit { font-family: var(--font-num); font-weight: 600; font-size: 14.5px; }
+[data-mode="earmark"] .goal-card .amount-row .big { font-family: var(--font-num); font-weight: 600; }
+[data-mode="earmark"] .goal-card .name { font-weight: 600; }
+[data-mode="earmark"] .fd-hero .stat .val,
+[data-mode="earmark"] .plan-sticky .big,
+[data-mode="earmark"] .amount-input,
+[data-mode="earmark"] .tx-row .amount,
+[data-mode="earmark"] .acct-card .bal,
+[data-mode="earmark"] .txcard .amount { font-family: var(--font-num); font-weight: 600; }
 /* real-app figures that used the display font */
-[data-mode="ronin"] .tomove-head .amt,
-[data-mode="ronin"] .tomove-row .amt,
-[data-mode="ronin"] .runway-num .big,
-[data-mode="ronin"] .cf-bal,
-[data-mode="ronin"] .cf-date .cf-dn { font-family: var(--font-num); font-weight: 600; }
+[data-mode="earmark"] .tomove-head .amt,
+[data-mode="earmark"] .tomove-row .amt,
+[data-mode="earmark"] .runway-num .big,
+[data-mode="earmark"] .cf-bal,
+[data-mode="earmark"] .cf-date .cf-dn { font-family: var(--font-num); font-weight: 600; }
 
 /* Headings */
-[data-mode="ronin"] .sec-head h2 { font-weight: 700; }
-[data-mode="ronin"] .card .hd h3 { font-weight: 600; font-style: normal; }
-[data-mode="ronin"] .topbar .crumb { font-weight: 700; font-size: 19px; letter-spacing: -0.01em; font-style: normal; }
-[data-mode="ronin"] .eyebrow { font-size: 10px; letter-spacing: 0.2em; font-weight: 600; color: var(--text-dim); }
+[data-mode="earmark"] .sec-head h2 { font-weight: 700; }
+[data-mode="earmark"] .card .hd h3 { font-weight: 600; font-style: normal; }
+[data-mode="earmark"] .topbar .crumb { font-weight: 700; font-size: 19px; letter-spacing: -0.01em; font-style: normal; }
+[data-mode="earmark"] .eyebrow { font-size: 10px; letter-spacing: 0.2em; font-weight: 600; color: var(--text-dim); }
 
 /* Brand lockup (in the top bar) */
 .topbar .brand { display: flex; align-items: center; gap: 11px; }
@@ -1509,7 +1509,7 @@ textarea { height: auto; padding: 10px 12px; }
    RESPONSIVE
 
    One place for every width- and pointer-conditional rule, at the foot of the
-   file so it outranks the `[data-mode="ronin"]` overrides above without
+   file so it outranks the `[data-mode="earmark"]` overrides above without
    needing to repeat their specificity for every property.
 
    Three steps, and each earns its keep:
@@ -1641,7 +1641,7 @@ textarea { height: auto; padding: 10px 12px; }
   .hero { gap: 12px; margin-bottom: 18px; }
   .hero-unassigned { padding: 22px var(--pad-card) 20px; }
   .hero-unassigned .big-num,
-  [data-mode="ronin"] .hero-unassigned .big-num { font-size: clamp(40px, 13vw, 60px); }
+  [data-mode="earmark"] .hero-unassigned .big-num { font-size: clamp(40px, 13vw, 60px); }
   .hero-unassigned .sub { max-width: none; }
   .hero-unassigned .pill-row .btn { flex: 1 1 auto; }
   .hero-side { gap: 12px; }
