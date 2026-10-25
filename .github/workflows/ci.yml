@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+# A new push to a PR cancels the run it supersedes instead of queueing behind it.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements*.txt
+
+      - name: Install
+        working-directory: backend
+        run: pip install -r requirements-dev.txt
+
+      # testcontainers starts its own pgvector database, so this needs the
+      # runner's Docker daemon and nothing else.
+      - name: Test
+        working-directory: backend
+        run: pytest
+
+  mcp:
+    name: mcp
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: mcp/requirements*.txt
+
+      - name: Install
+        working-directory: mcp
+        run: pip install -r requirements-dev.txt
+
+      - name: Test
+        working-directory: mcp
+        run: pytest
+
+  frontend:
+    name: frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install
+        working-directory: frontend
+        run: npm ci
+
+      - name: Test
+        working-directory: frontend
+        run: npm test
+
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+
+  docker:
+    name: docker images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Building is the check: a broken Dockerfile or a missing requirement
+      # should fail here, not on the next deploy.
+      - name: Build backend image
+        run: docker build ./backend --file backend/Dockerfile --tag earmark-backend:ci
+
+      - name: Build mcp image
+        run: docker build ./mcp --file mcp/Dockerfile --tag earmark-mcp:ci
+
+      - name: Build frontend image
+        run: docker build ./frontend --file frontend/Dockerfile.prod --tag earmark-frontend:ci
