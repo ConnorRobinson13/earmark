@@ -1,3 +1,5 @@
+import { ApiError } from './resource/ApiError'
+
 export const BASE = import.meta.env.VITE_API_URL || '/api'
 
 async function req(path, opts = {}) {
@@ -6,8 +8,11 @@ async function req(path, opts = {}) {
     ...opts,
   })
   if (!res.ok) {
-    const body = await res.text()
-    throw new Error(`${res.status}: ${body}`)
+    const raw = await res.text()
+    let body = raw
+    try { body = JSON.parse(raw) } catch { /* Keep non-JSON provider/proxy errors readable. */ }
+    const detail = typeof body === 'string' ? body : JSON.stringify(body)
+    throw new ApiError(res.status, body, path, `${res.status}: ${detail}`)
   }
   if (res.status === 204) return null
   return res.json()
@@ -79,6 +84,7 @@ export const api = {
       }),
     sync: () => req('/plaid/sync', { method: 'POST' }),
     items: () => req('/plaid/items'),
+    updateLinkToken: (id) => req(`/plaid/items/${id}/update-link-token`, { method: 'POST' }),
     unlinkItem: (id) => req(`/plaid/items/${id}`, { method: 'DELETE' }),
   },
 

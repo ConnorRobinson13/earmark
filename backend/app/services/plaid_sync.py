@@ -18,12 +18,14 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..db import new_session
 from ..models import Account, AccountType, PlaidInbox, PlaidItem
-from .plaid_client import PlaidClient, build_plaid_client
+from . import transactions as tx_svc
+from .plaid_client import PlaidApiError, PlaidClient, build_plaid_client
 from .suggest import suggest_fund
 
 log = logging.getLogger(__name__)
@@ -36,6 +38,35 @@ class LinkResult:
 
     item_id: str
     accounts_created: int
+
+
+@dataclass(frozen=True)
+class SyncIssue:
+    """A linked institution that could not be synced on this pass."""
+
+    item_pk: int
+    institution_name: str
+    error_code: str
+
+    @property
+    def needs_reauthentication(self) -> bool:
+        return self.error_code == "ITEM_LOGIN_REQUIRED"
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.item_pk,
+            "institution_name": self.institution_name,
+            "error_code": self.error_code,
+            "needs_reauthentication": self.needs_reauthentication,
+        }
+
+
+@dataclass(frozen=True)
+class SyncResult:
+    """Successful imports plus provider issues that need attention."""
+
+    added: int
+    issues: tuple[SyncIssue, ...] = ()
 
 
 # Plaid account subtype → our AccountType (consulted first)
@@ -99,41 +130,92 @@ def link_item(
     return LinkResult(item_id=linked.item_id, accounts_created=created)
 
 
-def run_sync(db: Session, client: PlaidClient) -> int:
-    """Pull new Plaid transactions and refresh balances. Returns count added.
+def run_sync(db: Session, client: PlaidClient) -> SyncResult:
+    """Pull transactions per Item, preserving successful Items on provider errors.
 
     Transactions dated before `settings.plaid_sync_floor_date` are silently
     dropped — Plaid's /transactions/sync cursor is opaque and backfills up to
     24 months on first sync, so the floor keeps the inbox from drowning in
-    history that's already accounted for in the seed.
+    history that's already accounted for in the seed. Each Item uses a savepoint:
+    an Item needing reauthentication cannot roll back healthy institutions or
+    advance its own cursor.
     """
-    items = db.scalars(select(PlaidItem)).all()
+    items = db.scalars(select(PlaidItem).order_by(PlaidItem.id)).all()
     if not items:
-        return 0
+        return SyncResult(added=0)
 
     floor = _sync_floor()
     total_added = 0
+    issues: list[SyncIssue] = []
     for item in items:
-        # Refresh balances first so inbox account_id lookups land on fresh rows
-        _upsert_accounts(db, item, client.accounts(item.access_token))
+        item_pk = item.id
+        institution_name = item.institution_name or "Unnamed institution"
+        try:
+            # A savepoint keeps a partial failure on one Item from persisting
+            # its account changes, inbox rows, or cursor. Commit each successful
+            # Item so a later unexpected failure cannot discard earlier imports.
+            with db.begin_nested():
+                item_added = _sync_item(db, client, item, floor)
+            db.commit()
+            total_added += item_added
+        except PlaidApiError as exc:
+            issue = SyncIssue(
+                item_pk=item_pk,
+                institution_name=institution_name,
+                error_code=exc.error_code,
+            )
+            issues.append(issue)
+            log.warning(
+                "Plaid sync failed for %s (HTTP %s, provider code %s, request_id %s)",
+                issue.institution_name,
+                exc.status,
+                issue.error_code,
+                exc.request_id,
+            )
+        except SQLAlchemyError as exc:
+            # Per-Item writes are isolated by the savepoint and prior Items have
+            # committed. Reset the failed transaction before attempting others.
+            db.rollback()
+            issue = SyncIssue(
+                item_pk=item_pk,
+                institution_name=institution_name,
+                error_code="DATABASE_ERROR",
+            )
+            issues.append(issue)
+            log.warning(
+                "Plaid sync could not save %s (database error %s)",
+                institution_name,
+                type(exc).__name__,
+            )
+    return SyncResult(added=total_added, issues=tuple(issues))
 
-        cursor = item.cursor or ""
-        has_more = True
-        while has_more:
-            page = client.sync_transactions(item.access_token, cursor)
-            for t in page.added:
-                if _ingest(db, t, floor):
-                    total_added += 1
-            # Plaid emits `removed` for genuine reversals AND for the old id
-            # when a pending transaction is replaced by its posted version.
-            # Drop matching inbox rows so they don't linger as zombies.
-            for r in page.removed:
-                _reconcile_removed(db, r)
-            cursor = page.next_cursor
-            has_more = page.has_more
-        item.cursor = cursor
-    db.commit()
-    return total_added
+
+def _sync_item(
+    db: Session,
+    client: PlaidClient,
+    item: PlaidItem,
+    floor: date | None,
+) -> int:
+    """Sync one Item inside the caller's savepoint."""
+    # Refresh balances first so inbox account_id lookups land on fresh rows.
+    _upsert_accounts(db, item, client.accounts(item.access_token))
+
+    added = 0
+    cursor = item.cursor or ""
+    has_more = True
+    while has_more:
+        page = client.sync_transactions(item.access_token, cursor)
+        for transaction in page.added:
+            if _ingest(db, transaction, floor):
+                added += 1
+        # Plaid emits `removed` for genuine reversals AND for the old id when
+        # a pending transaction is replaced by its posted version.
+        for removed in page.removed:
+            _reconcile_removed(db, removed)
+        cursor = page.next_cursor
+        has_more = page.has_more
+    item.cursor = cursor
+    return added
 
 
 def run_daily_sync(client: PlaidClient | None = None) -> int:
@@ -146,9 +228,9 @@ def run_daily_sync(client: PlaidClient | None = None) -> int:
     """
     db = new_session()
     try:
-        added = run_sync(db, client or build_plaid_client())
-        log.info("daily sync: added %d transactions", added)
-        return added
+        result = run_sync(db, client or build_plaid_client())
+        log.info("daily sync: added %d transactions", result.added)
+        return result.added
     except Exception:
         log.exception("daily sync failed")
         return 0
@@ -179,6 +261,13 @@ def _ingest(db: Session, t: dict[str, Any], floor: date | None) -> bool:
     if t.get("pending"):
         return False
     if db.scalar(select(PlaidInbox).where(PlaidInbox.plaid_transaction_id == pid)):
+        return False
+    # The inbox row is not the only record of having seen this id. Approving one
+    # posts to the ledger, and `_reconcile_removed` then deletes the inbox row
+    # if Plaid re-sends the id as `removed` — leaving the ledger entry as the
+    # sole memory of it. Re-staging it would offer the user an approve the
+    # unique index on `transactions.plaid_transaction_id` can only reject.
+    if tx_svc.find_by_plaid_id(db, pid) is not None:
         return False
     txn_date = t["date"]
     if floor and txn_date < floor:

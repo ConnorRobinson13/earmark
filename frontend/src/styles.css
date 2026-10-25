@@ -5,46 +5,47 @@
    ========================================================== */
 
 :root {
-  /* Budget Console: ink ramp, crimson accent,
-     Hanken Grotesk body / Syne display / JetBrains Mono figures. */
-  --bg:        #080809;   /* ink-950 — app backdrop */
-  --bg-2:      #0d0d0f;   /* ink-900 — base surface / topbar / drawer */
-  --surface:   #1c1c22;   /* ink-800 — raised card surface */
-  --surface-2: #131318;   /* ink-850 — inset / input field */
-  --surface-3: #24242b;   /* ink-700 */
-  --border:    #2a2a30;   /* ink-600 — strong border */
-  --border-2:  #33333a;
-  --hairline:  #26262d;   /* visible card hairline */
+  /* EARMARK — Budget Console, matched to the portfolio's light theme:
+     paper ground, crimson accent, ET Book body / Fraunces display /
+     IBM Plex Mono figures. Portfolio tokens mapped onto Earmark's names. */
+  --bg:        #faf9f7;   /* ground — app backdrop */
+  --bg-2:      #f2f1ed;   /* ground-sunken — base surface / topbar / drawer */
+  --surface:   #ffffff;   /* raised card surface */
+  --surface-2: #f2f1ed;   /* inset / input field */
+  --surface-3: #e4e3de;   /* rule — hover / pressed states */
+  --border:    #c9c8c2;   /* rule-strong — strong border */
+  --border-2:  #9a9ca2;   /* ink-faint — muted border */
+  --hairline:  #e4e3de;   /* rule — visible card hairline */
 
-  --text:      #efefef;   /* ash-100 — primary */
-  --text-2:    #8a8a92;   /* ink-200 — secondary */
-  --text-dim:  #58585e;   /* ink-300 — muted */
-  --text-mute: #484850;   /* ink-400 — faint */
+  --text:      #111113;   /* ink — primary */
+  --text-2:    #6b6e76;   /* ink-muted — secondary */
+  --text-dim:  #9a9ca2;   /* ink-faint — muted */
+  --text-mute: #b0b2b8;   /* faint */
 
-  --good:      #2fb67c;   /* emerald — positive / income */
-  --good-dim:  rgba(47,182,124,.12);
-  --bad:       #cc2936;   /* crimson — negative / overbudget */
-  --bad-dim:   rgba(204,41,54,.12);
-  --warn:      #e0a03c;   /* amber */
+  --good:      #2da44e;   /* green — positive / income */
+  --good-dim:  rgba(45,164,78,.10);
+  --bad:       #9e1b23;   /* crimson — negative / overbudget */
+  --bad-dim:   rgba(158,27,35,.08);
+  --warn:      #bf8700;   /* amber */
 
-  --accent:     #cc2936;
-  --accent-2:   #e14250;
+  --accent:     #9e1b23;
+  --accent-2:   #7e1219;
   --accent-ink: #ffffff;
-  --accent-fade: rgba(204,41,54,.12);   /* accent-soft */
-  --accent-border: rgba(204,41,54,.30); /* accent-soft-border */
+  --accent-fade: rgba(158,27,35,0.08);   /* accent-soft */
+  --accent-border: rgba(158,27,35,0.20); /* accent-soft-border */
 
   --r-sm: 0px;
   --r-md: 0px;
   --r-lg: 0px;
   --r-xl: 0px;
 
-  --shadow-1: 0 1px 0 rgba(255,255,255,.02) inset, 0 1px 2px rgba(0,0,0,.5);
-  --shadow-2: 0 1px 0 rgba(255,255,255,.04) inset, 0 18px 48px rgba(0,0,0,.55);
+  --shadow-1: 0 1px 2px rgba(17,17,19,.04);
+  --shadow-2: 0 4px 16px rgba(17,17,19,.06);
 
-  --font-sans: "Hanken Grotesk", ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
-  --font-display: "Syne", "Hanken Grotesk", ui-sans-serif, system-ui, sans-serif;
-  --font-num: "JetBrains Mono", ui-monospace, monospace;
+  --font-sans: "ET Book", "EB Garamond", Palatino, Georgia, serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-display: "Fraunces", "ET Book", Georgia, serif;
+  --font-num: "IBM Plex Mono", ui-monospace, monospace;
 
   --letter-display: -0.02em;
   --letter-body:    0.004em;
@@ -68,10 +69,13 @@
   --tap: 44px;
 }
 
-/* ─── ACCENT: crimson family ─── */
-[data-accent="crimson"] { --accent:#cc2936; --accent-2:#e0414e; --accent-ink:#ffffff; --accent-fade:#261216; }
-[data-accent="oxblood"] { --accent:#a21f2a; --accent-2:#c0303c; --accent-ink:#ffffff; --accent-fade:#200f12; }
-[data-accent="signal"]  { --accent:#e63946; --accent-2:#f45561; --accent-ink:#ffffff; --accent-fade:#2a1316; }
+/* Ambient Conway's Game of Life backdrop, behind everything. Content sits on
+   .app-layer above it; solid card and surface backgrounds occlude it. */
+.site-life {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  opacity: 0.05;
+}
+.app-layer { position: relative; z-index: 1; }
 
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
@@ -129,6 +133,7 @@ html[data-mode="editorial"] .num { font-feature-settings: "lnum","tnum"; font-we
 
 .app {
   display: block;
+  position: relative;
   min-height: 100vh;
   background: var(--bg);
 }
@@ -286,8 +291,8 @@ html[data-mode="editorial"] .num { font-feature-settings: "lnum","tnum"; font-we
   font-weight: 600;
 }
 .btn.primary:hover { background: var(--accent-2); }
-.btn.danger { color: var(--bad); border-color: rgba(255,126,126,.2); }
-.btn.danger:hover { background: rgba(255,126,126,.06); border-color: var(--bad); }
+.btn.danger { color: var(--bad); border-color: var(--accent-border); }
+.btn.danger:hover { background: var(--bad-dim); border-color: var(--bad); }
 .btn.ghost { background: transparent; border-color: transparent; color: var(--text-dim); }
 .btn.ghost:hover { background: var(--surface); color: var(--text); }
 .btn.sm { height: 28px; padding: 0 10px; font-size: 12px; }
@@ -681,7 +686,7 @@ textarea { height: auto; padding: 10px 12px; }
   transition: opacity .12s, color .12s, background .12s;
   display: grid; place-items: center;
 }
-.fund-row .row-del:hover { color: var(--bad); background: rgba(255,126,126,.08); }
+.fund-row .row-del:hover { color: var(--bad); background: var(--bad-dim); }
 
 /* Revealed on hover, which is fine for a mouse and invisible on a touch
    screen — where there is no hover, both stay on. The delete button in
@@ -690,7 +695,7 @@ textarea { height: auto; padding: 10px 12px; }
 @media (hover: hover) {
   .fund-row .row-del { opacity: 0; }
   .fund-row:hover .row-del { opacity: 1; }
-  .fund-row:hover .assign-button { border-color: var(--border); background: rgba(0,0,0,.2); }
+  .fund-row:hover .assign-button { border-color: var(--border); background: rgba(17,17,19,.04); }
 }
 @media (hover: none) {
   .fund-row .assign-button { border-color: var(--hairline); }
@@ -795,7 +800,7 @@ textarea { height: auto; padding: 10px 12px; }
 }
 .goal-card .goal-assign-row .assign-wrap.short .assign-button {
   color: var(--warn);
-  border-color: rgba(240,184,107,.3);
+  border-color: rgba(191,135,0,.3);
   border-style: solid;
 }
 .goal-card .goal-min { margin-top: 2px; font-size: 10.5px; }
@@ -944,7 +949,7 @@ textarea { height: auto; padding: 10px 12px; }
   color: var(--text-dim);
   border: 1px solid var(--hairline);
 }
-.tx-actions .reject-btn:hover { color: var(--bad); border-color: var(--bad); background: rgba(255,126,126,.04); }
+.tx-actions .reject-btn:hover { color: var(--bad); border-color: var(--bad); background: var(--bad-dim); }
 .tx-actions .approve-btn {
   background: var(--accent);
   color: var(--accent-ink);
@@ -1225,9 +1230,9 @@ textarea { height: auto; padding: 10px 12px; }
   font-weight: 600;
   letter-spacing: 0.02em;
 }
-.recon-badge.ok { background: rgba(111,220,155,.12); color: var(--good); border: 1px solid rgba(111,220,155,.3); }
-.recon-badge.unallocated { background: rgba(240,184,107,.1); color: var(--warn); border: 1px solid rgba(240,184,107,.3); }
-.recon-badge.over { background: rgba(255,126,126,.1); color: var(--bad); border: 1px solid rgba(255,126,126,.3); }
+.recon-badge.ok { background: var(--good-dim); color: var(--good); border: 1px solid rgba(45,164,78,.3); }
+.recon-badge.unallocated { background: rgba(191,135,0,.1); color: var(--warn); border: 1px solid rgba(191,135,0,.3); }
+.recon-badge.over { background: var(--bad-dim); color: var(--bad); border: var(--accent-border); }
 .acct-card .acct-recon-list { display: flex; flex-direction: column; gap: 4px; }
 .acct-card .acct-recon-row {
   display: flex; align-items: center; gap: 8px;
@@ -1260,8 +1265,8 @@ textarea { height: auto; padding: 10px 12px; }
 .uchip.pos  .dot { background: var(--warn); }
 .uchip.neg  .dot { background: var(--bad); }
 .uchip .amt { font-family: var(--font-num); font-weight: 600; font-variant-numeric: tabular-nums; }
-.uchip.pos { color: var(--warn); border-color: rgba(240,184,107,.3); }
-.uchip.neg { color: var(--bad); border-color: rgba(255,126,126,.3); }
+.uchip.pos { color: var(--warn); border-color: rgba(191,135,0,.3); }
+.uchip.neg { color: var(--bad); border-color: var(--accent-border); }
 
 /* ---------- Cash flow ---------- */
 .cf-banner { border-left: 3px solid var(--hairline); line-height: 1.5; }
@@ -1460,7 +1465,7 @@ textarea { height: auto; padding: 10px 12px; }
   z-index: 50;
   display: flex; align-items: center; gap: 3px;
   padding: 6px;
-  background: rgba(19,19,24,.92);
+  background: rgba(250,249,247,.94);
   border: 1px solid var(--border);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
@@ -1481,7 +1486,7 @@ textarea { height: auto; padding: 10px 12px; }
 }
 .dock .dockitem .ico { width: 17px; height: 17px; opacity: .9; position: relative; }
 .dock .dockitem span { position: relative; }
-.dock .dockitem:hover { color: var(--text-2); background: rgba(255,255,255,.05); }
+.dock .dockitem:hover { color: var(--text-2); background: rgba(17,17,19,.04); }
 .dock .dockitem.active { color: var(--text); background: var(--accent-fade); }
 .dock .dockitem.active::after {
   content: ""; position: absolute; left: 8px; right: 8px; bottom: 0;
@@ -1596,7 +1601,7 @@ textarea { height: auto; padding: 10px 12px; }
     gap: 0;
     padding: 4px 4px calc(4px + var(--safe-b));
     border-left: none; border-right: none; border-bottom: none;
-    background: rgba(13,13,15,.96);
+    background: rgba(250,249,247,.96);
   }
   .dock .dock-div { display: none; }
   .dock .dockitem {

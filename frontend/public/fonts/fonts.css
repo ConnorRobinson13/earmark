@@ -1,0 +1,80 @@
+/*
+ * The three self-hosted faces. Files live in /public/fonts with their licences
+ * beside them; see DESIGN.md for why these three and nothing else.
+ *
+ * Everything is woff2 and latin-subset. `swap` throughout: the fallback stack
+ * is picked to be close enough in metrics that the swap is not a lurch, and a
+ * blocking font is never worth it on a site that is mostly text.
+ */
+
+/* ── Editorial: ET Book (MIT) ──────────────────────────────────────────────
+   Tufte's book face. Old-style figures in the roman, which is what we want in
+   running prose — numerals that sit in the line rather than shouting over it. */
+
+@font-face {
+  font-family: "ET Book";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/et-book-roman.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "ET Book";
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/et-book-italic.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "ET Book";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/et-book-bold.woff2") format("woff2");
+}
+
+/* ── Display: Fraunces (OFL) ───────────────────────────────────────────────
+   One variable file covering 100–900. The opsz/SOFT/WONK axes are pinned by
+   --font-display-axes in globals.css rather than left at their defaults, which
+   would give us the small-optical-size, wonky cut. Display sizes only. */
+
+@font-face {
+  font-family: "Fraunces";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  /* Plain "woff2", not "woff2-variations" — the latter is from an abandoned
+     CSS Fonts 4 draft, and an engine that does not recognise the format token
+     throws away the whole src, which would silently drop the display face. */
+  src: url("/fonts/fraunces-latin-variable.woff2") format("woff2");
+}
+
+/* ── Console: IBM Plex Mono (OFL) ──────────────────────────────────────────
+   Three static weights rather than a variable file; at 11–14px the console
+   register only ever uses these, and three subset files beat one large one. */
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/ibm-plex-mono-latin-400.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/ibm-plex-mono-latin-500.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/ibm-plex-mono-latin-600.woff2") format("woff2");
+}
