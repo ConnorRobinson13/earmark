@@ -7,7 +7,7 @@
 # Node 22, not 20: the test suite's jsdom/undici will not load on 20, so 20 is
 # a toolchain nothing here is verified against. Building on the version the
 # tests pass on keeps "tests green" and "image builds" the same statement.
-FROM node:22-alpine AS build
+FROM node:26-alpine AS build
 
 WORKDIR /app
 
