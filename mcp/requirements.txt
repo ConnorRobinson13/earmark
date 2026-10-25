@@ -3,6 +3,6 @@
 # `from __future__ import annotations` makes every tool fail to register, and 2.0
 # drops `mcp.server.fastmcp` altogether.
 mcp>=1.14,<2
-httpx==0.27.2
-uvicorn[standard]==0.32.0
+httpx==0.28.1
+uvicorn[standard]==0.54.0
 starlette>=0.40.0
