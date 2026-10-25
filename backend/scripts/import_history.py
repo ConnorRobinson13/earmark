@@ -35,6 +35,7 @@ Run inside the backend container:
   docker compose exec -w /app backend python -m scripts.import_history          # dry-run
   docker compose exec -w /app backend python -m scripts.import_history --commit  # write
 """
+
 from __future__ import annotations
 
 import csv
@@ -46,15 +47,22 @@ from pathlib import Path
 
 sys.path.insert(0, "/app")
 
-from sqlalchemy import select  # noqa: E402
-
-from app.db import new_session  # noqa: E402
-from app.models import Fund, FundKind, Transaction, TxType  # noqa: E402
+from app.db import new_session
+from app.models import Fund, FundKind, Transaction, TxType
+from sqlalchemy import select
 
 DATA_DIR = Path(__file__).parent / "history_csvs"
 MONTHS = [
-    "06-2025", "07-2025", "08-2025", "09-2025", "10-2025",
-    "11-2025", "12-2025", "01-2026", "02-2026", "03-2026",
+    "06-2025",
+    "07-2025",
+    "08-2025",
+    "09-2025",
+    "10-2025",
+    "11-2025",
+    "12-2025",
+    "01-2026",
+    "02-2026",
+    "03-2026",
 ]
 INCOME_GROUP = "Income"
 HIST_PREFIX = "[History] "
@@ -91,7 +99,9 @@ def parse_rows() -> list[dict]:
 def build_plan(rows: list[dict]):
     """Return (groups, per_month) where groups maps group->stats and per_month
     maps (YYYY-MM)->{group: net_spend}. Income is bucketed under '<Income>'."""
-    groups: dict[str, dict] = defaultdict(lambda: {"expense": 0, "income": 0, "net": Decimal("0")})
+    groups: dict[str, dict] = defaultdict(
+        lambda: {"expense": 0, "income": 0, "net": Decimal("0")}
+    )
     per_month: dict[str, dict] = defaultdict(lambda: defaultdict(lambda: Decimal("0")))
     income_total = Decimal("0")
     for r in rows:
@@ -113,7 +123,9 @@ def build_plan(rows: list[dict]):
 def print_report(rows, groups, per_month, income_total):
     print("=" * 70)
     print(f"DRY RUN — parsed {len(rows)} rows from {DATA_DIR}")
-    print(f"Date range: {min(r['date'] for r in rows)} -> {max(r['date'] for r in rows)}")
+    print(
+        f"Date range: {min(r['date'] for r in rows)} -> {max(r['date'] for r in rows)}"
+    )
     print("=" * 70)
     print("\nHidden funds to create (kind=operational, archived, category=group):")
     for grp in sorted(groups):
@@ -174,19 +186,29 @@ def commit(rows, groups):
             note = (note + " " if note else "") + "[ed-import]"
             merchant = r["merchant"] or r["item"]
             if r["group"] == INCOME_GROUP:
-                db.add(Transaction(
-                    fund_id=None, type=TxType.income, amount=r["amount"],
-                    date=r["date"], merchant=merchant, notes=note,
-                ))
+                db.add(
+                    Transaction(
+                        fund_id=None,
+                        type=TxType.income,
+                        amount=r["amount"],
+                        date=r["date"],
+                        merchant=merchant,
+                        notes=note,
+                    )
+                )
                 n_untagged += 1
             else:
                 is_exp = r["amount"] < 0
-                db.add(Transaction(
-                    fund_id=fund_by_group[r["group"]].id,
-                    type=TxType.expense if is_exp else TxType.income,
-                    amount=r["amount"], date=r["date"],
-                    merchant=merchant, notes=note,
-                ))
+                db.add(
+                    Transaction(
+                        fund_id=fund_by_group[r["group"]].id,
+                        type=TxType.expense if is_exp else TxType.income,
+                        amount=r["amount"],
+                        date=r["date"],
+                        merchant=merchant,
+                        notes=note,
+                    )
+                )
                 if is_exp:
                     n_exp += 1
                 else:

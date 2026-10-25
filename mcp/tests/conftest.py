@@ -8,6 +8,7 @@ swaps in through.
 
 No network, no compose stack, no database: `pytest` here needs nothing running.
 """
+
 from __future__ import annotations
 
 import json

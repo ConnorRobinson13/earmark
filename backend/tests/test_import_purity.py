@@ -10,6 +10,7 @@ very first `app` import, and so nothing it does leaks into the rest of the
 suite. Its working directory is a scratch directory holding a decoy `.env`, so
 that a settings import would be caught reading it.
 """
+
 from __future__ import annotations
 
 import json
@@ -130,7 +131,9 @@ def test_importing_models_does_not_read_the_dotenv_file(probe):
 
 
 def test_importing_models_opens_no_sockets(probe):
-    assert not probe["connected"], f"importing app.models connected to {probe['connected']}"
+    assert not probe["connected"], (
+        f"importing app.models connected to {probe['connected']}"
+    )
 
 
 def test_importing_models_pulls_in_neither_settings_nor_an_engine(probe):

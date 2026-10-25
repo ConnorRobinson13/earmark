@@ -47,7 +47,7 @@ export default function QuickAdd() {
           setFundId(String(r.fund_id))
           setSuggestSrc(r.source)
         }
-      } catch {}
+      } catch { /* the suggestion is a convenience; a failed lookup leaves the fund blank */ }
     }, 400)
     return () => clearTimeout(suggestTimer.current)
   }, [merchant])

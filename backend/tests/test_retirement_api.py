@@ -4,6 +4,7 @@ The recurrence itself is covered in `test_retirement.py` without a database.
 What is left for here is the part that needs one — where the starting balance
 comes from — plus the shape of the body, which two clients now chart from.
 """
+
 from __future__ import annotations
 
 from decimal import Decimal
@@ -63,18 +64,29 @@ def test_response_shape(client):
     body = client.get("/retirement/projection", params=SHARED_PARAMS).json()
 
     assert set(body) == {
-        "current_age", "retire_age", "years",
-        "annual_return_pct", "monthly_contribution",
-        "contribution_growth_pct", "inflation_pct",
-        "starting_balance", "total_contributed", "compounded_growth",
-        "final_nominal", "final_real", "series",
+        "current_age",
+        "retire_age",
+        "years",
+        "annual_return_pct",
+        "monthly_contribution",
+        "contribution_growth_pct",
+        "inflation_pct",
+        "starting_balance",
+        "total_contributed",
+        "compounded_growth",
+        "final_nominal",
+        "final_real",
+        "series",
     }
     assert body["years"] == 37
     assert len(body["series"]) == 38  # today, then one point per year
     assert set(body["series"][0]) == {"year", "age", "nominal", "real", "contributed"}
     assert body["series"][0] == {
-        "year": 0, "age": 28,
-        "nominal": "42000.00", "real": "42000.00", "contributed": "0.00",
+        "year": 0,
+        "age": 28,
+        "nominal": "42000.00",
+        "real": "42000.00",
+        "contributed": "0.00",
     }
     assert body["series"][-1]["age"] == 65
 
@@ -90,12 +102,9 @@ def test_the_headline_figures_add_up(client):
 
     body = client.get("/retirement/projection", params=SHARED_PARAMS).json()
 
-    assert (
-        Decimal(body["starting_balance"])
-        + Decimal(body["total_contributed"])
-        + Decimal(body["compounded_growth"])
-        == Decimal(body["final_nominal"])
-    )
+    assert Decimal(body["starting_balance"]) + Decimal(
+        body["total_contributed"]
+    ) + Decimal(body["compounded_growth"]) == Decimal(body["final_nominal"])
     # Escalation and deflation are both on, so both are visible in the totals:
     # more went in than 583 × 12 × 37, and today's dollars are worth less.
     assert Decimal(body["total_contributed"]) > Decimal("583") * 12 * 37

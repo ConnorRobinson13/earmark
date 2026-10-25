@@ -1,4 +1,5 @@
 """Bulk operations across funds — e.g. copying assignments month-to-month."""
+
 from datetime import date
 from decimal import Decimal
 
@@ -20,7 +21,7 @@ router = APIRouter(prefix="/bulk", tags=["bulk"])
 
 class CopyAssignmentsBody(BaseModel):
     from_month: str  # YYYY-MM or YYYY-MM-DD
-    to_month: str    # YYYY-MM or YYYY-MM-DD
+    to_month: str  # YYYY-MM or YYYY-MM-DD
 
 
 class SetIncomeBody(BaseModel):
@@ -104,4 +105,8 @@ def set_monthly_income(body: SetIncomeBody, db: Session = Depends(get_db)):
         merchant="Income adjustment",
     )
     db.commit()
-    return {"delta": str(delta), "current": str(body.amount), "target": str(body.amount)}
+    return {
+        "delta": str(delta),
+        "current": str(body.amount),
+        "target": str(body.amount),
+    }

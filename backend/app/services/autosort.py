@@ -18,6 +18,7 @@ Only the fund assignment changes. `apply_assignments` touches `fund_id` and
 nothing else, so a transaction's amount, date, merchant and Plaid id are
 preserved exactly as posted.
 """
+
 from __future__ import annotations
 
 import json
@@ -110,7 +111,7 @@ def _build_prompt(txns: list[Transaction], funds: dict[int, str]) -> str:
         "null if none fit.\n\n"
         f"Funds:\n{fund_lines}\n\n"
         f"Transactions:\n{txn_lines}\n\n"
-        'Respond with JSON only, an array of objects: '
+        "Respond with JSON only, an array of objects: "
         '[{"transaction_id": <id>, "fund_id": <id or null>}]. '
         "Only use transaction IDs and fund IDs from the lists above."
     )
@@ -224,9 +225,7 @@ def suggest_assignments(db: Session, *, limit: int = SUGGEST_BATCH) -> list[Sugg
     return suggestions
 
 
-def apply_assignments(
-    db: Session, changes: list[tuple[int, int]]
-) -> list[Transaction]:
+def apply_assignments(db: Session, changes: list[tuple[int, int]]) -> list[Transaction]:
     """Apply confirmed (transaction_id, fund_id) assignments. The only writer.
 
     Validates every change against the live funds *before* mutating anything, so

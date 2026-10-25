@@ -1,4 +1,5 @@
 """Admin actions — dev/local-only conveniences."""
+
 import subprocess
 import sys
 
@@ -19,7 +20,11 @@ def reset_to_seed(keep_accounts: bool = True):
     if keep_accounts:
         args.append("--keep-accounts")
     proc = subprocess.run(
-        args, cwd="/app", capture_output=True, text=True, timeout=120,
+        args,
+        cwd="/app",
+        capture_output=True,
+        text=True,
+        timeout=120,
     )
     if proc.returncode != 0:
         raise HTTPException(500, f"seed failed: {proc.stderr or proc.stdout}")

@@ -5,12 +5,12 @@ behaviours, so these tests are written against *all* the month-taking endpoints
 at once: one rejection shape, both input forms accepted everywhere, and the same
 answer whether the caller names the month or a day inside it.
 """
+
 from __future__ import annotations
 
 from datetime import date
 
 import pytest
-
 from app.month import INVALID_MONTH_DETAIL
 
 # name -> (method, url template, json body template). `{month}` is substituted
@@ -56,7 +56,9 @@ def send(client):
     def _send(name: str, month: str):
         method, url, body = MONTH_ENDPOINTS[name]
         if "{fund_id}" in url:
-            fund_id = client.post("/funds", json={"name": f"Fund {name} {month}"}).json()["id"]
+            fund_id = client.post(
+                "/funds", json={"name": f"Fund {name} {month}"}
+            ).json()["id"]
             url = url.replace("{fund_id}", str(fund_id))
         if body is not None:
             body = {k: v.replace("{month}", month) for k, v in body.items()}
@@ -90,9 +92,12 @@ def test_a_mid_month_day_reads_the_same_month_as_its_first(client):
 
 
 def test_writing_a_mid_month_day_lands_on_the_first(client):
-    assert client.put(
-        "/monthly-meta/2026-07-22", json={"planned_income": "500"}
-    ).json()["month"] == "2026-07-01"
+    assert (
+        client.put("/monthly-meta/2026-07-22", json={"planned_income": "500"}).json()[
+            "month"
+        ]
+        == "2026-07-01"
+    )
 
     listed = client.get("/monthly-meta").json()
     assert [row["month"] for row in listed] == ["2026-07-01"]

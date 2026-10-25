@@ -8,6 +8,7 @@ views cannot drift apart.
 
 Nothing in this module commits. Callers own the transaction boundary.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

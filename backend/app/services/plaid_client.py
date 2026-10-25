@@ -13,26 +13,28 @@ Account and transaction payloads stay as the dicts Plaid sent, because the sync
 stores the raw transaction verbatim and reads accounts with `.get` — reshaping
 them here would only invent a second vocabulary for the same fields.
 """
+
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Protocol
-from urllib3.exceptions import HTTPError as Urllib3HTTPError
+from typing import Any, Protocol
 
 from plaid import ApiClient, Configuration, Environment
 from plaid.api import plaid_api
 from plaid.exceptions import ApiException
 from plaid.model.accounts_get_request import AccountsGetRequest
 from plaid.model.country_code import CountryCode
+from plaid.model.item_get_request import ItemGetRequest
 from plaid.model.item_public_token_exchange_request import (
     ItemPublicTokenExchangeRequest,
 )
-from plaid.model.item_get_request import ItemGetRequest
 from plaid.model.link_token_create_request import LinkTokenCreateRequest
 from plaid.model.link_token_create_request_user import LinkTokenCreateRequestUser
 from plaid.model.products import Products
 from plaid.model.transactions_sync_request import TransactionsSyncRequest
+from urllib3.exceptions import HTTPError as Urllib3HTTPError
 
 from ..config import settings
 
@@ -227,7 +229,9 @@ class PlaidApiClient:
                 payload = body
             raise PlaidApiError(
                 error_code=str(payload.get("error_code") or "PLAID_API_ERROR"),
-                error_message=str(payload.get("error_message") or "Plaid request failed"),
+                error_message=str(
+                    payload.get("error_message") or "Plaid request failed"
+                ),
                 status=getattr(exc, "status", None),
                 request_id=(
                     str(payload["request_id"]) if payload.get("request_id") else None

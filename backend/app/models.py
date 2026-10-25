@@ -3,12 +3,11 @@ from __future__ import annotations
 import enum
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Optional
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
-    DateTime,
     Date,
+    DateTime,
     Enum,
     ForeignKey,
     Index,
@@ -26,9 +25,11 @@ from .db import Base
 
 
 class GoalType(str, enum.Enum):
-    savings = "savings"           # target = a balance you want to hit
-    contribution = "contribution" # target = total contributed in a period (Roth/HSA/401k)
-    debt = "debt"                 # target = amount owed; money added pays it DOWN toward 0
+    savings = "savings"  # target = a balance you want to hit
+    contribution = (
+        "contribution"  # target = total contributed in a period (Roth/HSA/401k)
+    )
+    debt = "debt"  # target = amount owed; money added pays it DOWN toward 0
 
 
 class FundKind(str, enum.Enum):
@@ -44,7 +45,7 @@ class TxType(str, enum.Enum):
 
 
 class AccountType(str, enum.Enum):
-    investment = "investment"      # IRA / 401k / brokerage — balance-tracked, no inbox
+    investment = "investment"  # IRA / 401k / brokerage — balance-tracked, no inbox
     emergency_fund = "emergency_fund"  # savings carved out from "spendable cash"
     checking = "checking"
     savings = "savings"
@@ -63,18 +64,18 @@ class Fund(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(120), unique=True)
     kind: Mapped[FundKind] = mapped_column(Enum(FundKind), default=FundKind.operational)
-    target: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
-    target_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
-    goal_type: Mapped[Optional[GoalType]] = mapped_column(
+    target: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    target_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    goal_type: Mapped[GoalType | None] = mapped_column(
         Enum(GoalType), nullable=True
     )  # set only when kind=goal
-    backed_by_account_id: Mapped[Optional[int]] = mapped_column(
+    backed_by_account_id: Mapped[int | None] = mapped_column(
         ForeignKey("accounts.id"), nullable=True
     )
     # For debt funds: the actual fixed monthly payment from the lender (includes
     # interest). When set, the UI shows this instead of the principal-only
     # payoff-by-date estimate.
-    min_payment: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
+    min_payment: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     sort_order: Mapped[int] = mapped_column(default=0)
     # Day-of-month (1-31) the fund's spending/bill is due. Recurs every month;
     # clamped to the month length at projection time (31 -> Feb 28). Drives the
@@ -85,16 +86,16 @@ class Fund(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
-    archived_at: Mapped[Optional[datetime]] = mapped_column(
+    archived_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
     # Per-month visibility: if set, this fund only appears in months whose
     # start day is <= effective_to_month. Used by "delete from this month" so
     # past months keep the fund while future months don't.
-    effective_to_month: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
-    category: Mapped[Optional[str]] = mapped_column(String(60), nullable=True)
+    effective_to_month: Mapped[date | None] = mapped_column(Date, nullable=True)
+    category: Mapped[str | None] = mapped_column(String(60), nullable=True)
 
-    transactions: Mapped[list["Transaction"]] = relationship(back_populates="fund")
+    transactions: Mapped[list[Transaction]] = relationship(back_populates="fund")
 
 
 class Account(Base):
@@ -104,11 +105,11 @@ class Account(Base):
     name: Mapped[str] = mapped_column(String(120))
     type: Mapped[AccountType] = mapped_column(Enum(AccountType))
     current_balance: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0)
-    last_synced_at: Mapped[Optional[datetime]] = mapped_column(
+    last_synced_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    plaid_account_id: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
-    plaid_item_id: Mapped[Optional[int]] = mapped_column(
+    plaid_account_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    plaid_item_id: Mapped[int | None] = mapped_column(
         ForeignKey("plaid_items.id", ondelete="SET NULL"), nullable=True
     )
 
@@ -117,7 +118,7 @@ class Transaction(Base):
     __tablename__ = "transactions"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    fund_id: Mapped[Optional[int]] = mapped_column(
+    fund_id: Mapped[int | None] = mapped_column(
         ForeignKey("funds.id"), nullable=True, index=True
     )
     type: Mapped[TxType] = mapped_column(Enum(TxType))
@@ -125,21 +126,21 @@ class Transaction(Base):
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
     date: Mapped[date] = mapped_column(Date, index=True)
     merchant: Mapped[str] = mapped_column(String(200), default="")
-    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    plaid_transaction_id: Mapped[Optional[str]] = mapped_column(
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    plaid_transaction_id: Mapped[str | None] = mapped_column(
         String(120), nullable=True, unique=True
     )
-    linked_transaction_id: Mapped[Optional[int]] = mapped_column(
+    linked_transaction_id: Mapped[int | None] = mapped_column(
         ForeignKey("transactions.id"), nullable=True
     )
-    embedding: Mapped[Optional[list[float]]] = mapped_column(
+    embedding: Mapped[list[float] | None] = mapped_column(
         Vector(EMBEDDING_DIM), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
 
-    fund: Mapped[Optional[Fund]] = relationship(back_populates="transactions")
+    fund: Mapped[Fund | None] = relationship(back_populates="transactions")
 
 
 class MonthlyMeta(Base):
@@ -147,6 +148,7 @@ class MonthlyMeta(Base):
     the month; Unassigned is computed against this figure (EveryDollar-style)
     rather than against actual deposits, so paychecks landing don't bump
     Unassigned — they were already allocated in the plan."""
+
     __tablename__ = "monthly_meta"
 
     month: Mapped[date] = mapped_column(Date, primary_key=True)
@@ -167,16 +169,19 @@ class GoalSettlement(Base):
     fund balance is untouched (assignments already credited it earlier in the
     month); this row is what `goals_saved_in_month` reads from.
     """
+
     __tablename__ = "goal_settlements"
     # `goals_saved_in_month` reads this table by goal over a date window.
-    __table_args__ = (
-        Index("ix_goal_settlements_goal_month", "goal_id", "settled_at"),
-    )
+    __table_args__ = (Index("ix_goal_settlements_goal_month", "goal_id", "settled_at"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     goal_id: Mapped[int] = mapped_column(ForeignKey("funds.id", ondelete="CASCADE"))
-    from_account_id: Mapped[Optional[int]] = mapped_column(ForeignKey("accounts.id"), nullable=True)
-    to_account_id: Mapped[Optional[int]] = mapped_column(ForeignKey("accounts.id"), nullable=True)
+    from_account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("accounts.id"), nullable=True
+    )
+    to_account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("accounts.id"), nullable=True
+    )
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
     settled_at: Mapped[date] = mapped_column(Date)
     created_at: Mapped[datetime] = mapped_column(
@@ -193,15 +198,19 @@ class PlaidInbox(Base):
     merchant: Mapped[str] = mapped_column(String(200), default="")
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
     date: Mapped[date] = mapped_column(Date)
-    account_id: Mapped[Optional[int]] = mapped_column(ForeignKey("accounts.id"), nullable=True)
-    suggested_fund_id: Mapped[Optional[int]] = mapped_column(
+    account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("accounts.id"), nullable=True
+    )
+    suggested_fund_id: Mapped[int | None] = mapped_column(
         ForeignKey("funds.id"), nullable=True
     )
-    status: Mapped[InboxStatus] = mapped_column(Enum(InboxStatus), default=InboxStatus.pending)
+    status: Mapped[InboxStatus] = mapped_column(
+        Enum(InboxStatus), default=InboxStatus.pending
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
-    reviewed_at: Mapped[Optional[datetime]] = mapped_column(
+    reviewed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
 
@@ -214,11 +223,12 @@ class PaydaySchedule(Base):
     even split of the month's planned income across all NULL-amount paydays
     (fixed-amount paydays are subtracted from planned income first).
     """
+
     __tablename__ = "payday_schedule"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     day_of_month: Mapped[int] = mapped_column(SmallInteger)
-    amount: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 2), nullable=True)
+    amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -251,8 +261,8 @@ class PlaidItem(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     item_id: Mapped[str] = mapped_column(String(120), unique=True)
     access_token: Mapped[str] = mapped_column(String(200))
-    institution_name: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
-    cursor: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    institution_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    cursor: Mapped[str | None] = mapped_column(String(200), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

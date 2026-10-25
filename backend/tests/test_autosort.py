@@ -12,14 +12,14 @@ These pin the three things that make the feature safe to ship:
 The provider is mocked throughout (`FakeOpenRouter` stands in for
 `httpx.post`), so the suite makes no live API call and needs no real key.
 """
+
 from __future__ import annotations
 
 import json
-from datetime import date
+from datetime import UTC, date
 from decimal import Decimal
 
 import pytest
-
 from app.models import Fund, FundKind, Transaction, TxType
 
 
@@ -78,30 +78,42 @@ def _seed(*, archived: bool = False):
         s.add_all([groceries, fuel])
         funds = {"groceries": groceries, "fuel": fuel}
         if archived:
-            from datetime import datetime, timezone
+            from datetime import datetime
 
             old = Fund(name="Old", kind=FundKind.operational)
-            old.archived_at = datetime.now(timezone.utc)
+            old.archived_at = datetime.now(UTC)
             s.add(old)
             funds["old"] = old
         s.flush()
 
         unassigned_a = Transaction(
-            fund_id=None, type=TxType.expense, amount=Decimal("-42.00"),
-            date=date(2026, 3, 1), merchant="Trader Joe's",
+            fund_id=None,
+            type=TxType.expense,
+            amount=Decimal("-42.00"),
+            date=date(2026, 3, 1),
+            merchant="Trader Joe's",
             plaid_transaction_id="plaid-a",
         )
         unassigned_b = Transaction(
-            fund_id=None, type=TxType.expense, amount=Decimal("-30.00"),
-            date=date(2026, 3, 2), merchant="Shell",
+            fund_id=None,
+            type=TxType.expense,
+            amount=Decimal("-30.00"),
+            date=date(2026, 3, 2),
+            merchant="Shell",
         )
         already_assigned = Transaction(
-            fund_id=groceries.id, type=TxType.expense, amount=Decimal("-10.00"),
-            date=date(2026, 3, 3), merchant="Costco",
+            fund_id=groceries.id,
+            type=TxType.expense,
+            amount=Decimal("-10.00"),
+            date=date(2026, 3, 3),
+            merchant="Costco",
         )
         unassigned_income = Transaction(
-            fund_id=None, type=TxType.income, amount=Decimal("1000.00"),
-            date=date(2026, 3, 4), merchant="Paycheck",
+            fund_id=None,
+            type=TxType.income,
+            amount=Decimal("1000.00"),
+            date=date(2026, 3, 4),
+            merchant="Paycheck",
         )
         s.add_all([unassigned_a, unassigned_b, already_assigned, unassigned_income])
         s.flush()
@@ -128,6 +140,7 @@ def _fund_id_of(txn_id: int):
 # --------------------------------------------------------------------------
 # Gating: no key
 # --------------------------------------------------------------------------
+
 
 def test_status_reports_disabled_without_a_key(client, monkeypatch):
     from app.services import autosort
@@ -160,7 +173,9 @@ def test_confirm_is_gated_off_without_a_key(client, monkeypatch):
 
     resp = client.post(
         "/autosort/confirm",
-        json={"changes": [{"transaction_id": ids["txn_a"], "fund_id": ids["groceries"]}]},
+        json={
+            "changes": [{"transaction_id": ids["txn_a"], "fund_id": ids["groceries"]}]
+        },
     )
     assert resp.status_code == 503
     assert _fund_id_of(ids["txn_a"]) is None, "mutated with the feature gated off"
@@ -169,6 +184,7 @@ def test_confirm_is_gated_off_without_a_key(client, monkeypatch):
 # --------------------------------------------------------------------------
 # Suggestions: read-only, validated, pinned model
 # --------------------------------------------------------------------------
+
 
 def test_suggestions_use_the_pinned_model_and_a_server_side_key(client, openrouter):
     ids = _seed()
@@ -188,10 +204,12 @@ def test_suggestions_use_the_pinned_model_and_a_server_side_key(client, openrout
 def test_suggestions_do_not_change_any_assignment(client, openrouter):
     """The read-only half: a suggestion proposes, it never writes."""
     ids = _seed()
-    openrouter.content = json.dumps([
-        {"transaction_id": ids["txn_a"], "fund_id": ids["fuel"]},
-        {"transaction_id": ids["txn_b"], "fund_id": ids["groceries"]},
-    ])
+    openrouter.content = json.dumps(
+        [
+            {"transaction_id": ids["txn_a"], "fund_id": ids["fuel"]},
+            {"transaction_id": ids["txn_b"], "fund_id": ids["groceries"]},
+        ]
+    )
 
     resp = client.post("/autosort/suggestions")
     assert resp.status_code == 200, resp.text
@@ -207,11 +225,13 @@ def test_suggestions_only_cover_unassigned_expenses(client, openrouter):
     """Already-assigned expenses and unassigned income are left out of the ask."""
     ids = _seed()
     # The model is never even offered these; if it names them anyway they drop.
-    openrouter.content = json.dumps([
-        {"transaction_id": ids["assigned"], "fund_id": ids["fuel"]},
-        {"transaction_id": ids["income"], "fund_id": ids["fuel"]},
-        {"transaction_id": ids["txn_a"], "fund_id": ids["groceries"]},
-    ])
+    openrouter.content = json.dumps(
+        [
+            {"transaction_id": ids["assigned"], "fund_id": ids["fuel"]},
+            {"transaction_id": ids["income"], "fund_id": ids["fuel"]},
+            {"transaction_id": ids["txn_a"], "fund_id": ids["groceries"]},
+        ]
+    )
 
     body = client.post("/autosort/suggestions").json()["suggestions"]
     assert {s["transaction_id"] for s in body} == {ids["txn_a"]}
@@ -225,23 +245,30 @@ def test_invalid_model_output_is_dropped_not_assigned(client, openrouter):
     """A hallucinated transaction, an unknown fund and an archived fund are all
     discarded; only the one valid pairing survives."""
     ids = _seed(archived=True)
-    openrouter.content = json.dumps([
-        {"transaction_id": 999999, "fund_id": ids["groceries"]},   # no such txn
-        {"transaction_id": ids["txn_a"], "fund_id": 888888},        # no such fund
-        {"transaction_id": ids["txn_b"], "fund_id": ids["old"]},    # archived fund
-        {"transaction_id": ids["txn_a"], "fund_id": ids["fuel"]},   # the one good one
-    ])
+    openrouter.content = json.dumps(
+        [
+            {"transaction_id": 999999, "fund_id": ids["groceries"]},  # no such txn
+            {"transaction_id": ids["txn_a"], "fund_id": 888888},  # no such fund
+            {"transaction_id": ids["txn_b"], "fund_id": ids["old"]},  # archived fund
+            {
+                "transaction_id": ids["txn_a"],
+                "fund_id": ids["fuel"],
+            },  # the one good one
+        ]
+    )
 
     body = client.post("/autosort/suggestions").json()["suggestions"]
-    assert body == [{
-        "transaction_id": ids["txn_a"],
-        "merchant": "Trader Joe's",
-        "amount": "-42.00",
-        "date": "2026-03-01",
-        "current_fund_id": None,
-        "suggested_fund_id": ids["fuel"],
-        "suggested_fund_name": "Fuel",
-    }]
+    assert body == [
+        {
+            "transaction_id": ids["txn_a"],
+            "merchant": "Trader Joe's",
+            "amount": "-42.00",
+            "date": "2026-03-01",
+            "current_fund_id": None,
+            "suggested_fund_id": ids["fuel"],
+            "suggested_fund_name": "Fuel",
+        }
+    ]
 
 
 def test_malformed_model_output_yields_no_suggestions(client, openrouter):
@@ -255,12 +282,17 @@ def test_malformed_model_output_yields_no_suggestions(client, openrouter):
 # Confirm: the only writer, validated, atomic
 # --------------------------------------------------------------------------
 
-def test_confirm_applies_only_the_listed_change_and_preserves_the_rest(client, openrouter):
+
+def test_confirm_applies_only_the_listed_change_and_preserves_the_rest(
+    client, openrouter
+):
     ids = _seed()
 
     resp = client.post(
         "/autosort/confirm",
-        json={"changes": [{"transaction_id": ids["txn_a"], "fund_id": ids["groceries"]}]},
+        json={
+            "changes": [{"transaction_id": ids["txn_a"], "fund_id": ids["groceries"]}]
+        },
     )
     assert resp.status_code == 200, resp.text
 
@@ -283,10 +315,12 @@ def test_confirm_rejects_an_invalid_destination_without_mutating(client, openrou
 
     resp = client.post(
         "/autosort/confirm",
-        json={"changes": [
-            {"transaction_id": ids["txn_a"], "fund_id": ids["groceries"]},  # valid
-            {"transaction_id": ids["txn_b"], "fund_id": ids["old"]},        # archived
-        ]},
+        json={
+            "changes": [
+                {"transaction_id": ids["txn_a"], "fund_id": ids["groceries"]},  # valid
+                {"transaction_id": ids["txn_b"], "fund_id": ids["old"]},  # archived
+            ]
+        },
     )
     assert resp.status_code == 400
 

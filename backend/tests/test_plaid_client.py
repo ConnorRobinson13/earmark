@@ -1,9 +1,8 @@
 import json
 
 import pytest
-from plaid.exceptions import ApiException
-
 from app.services.plaid_client import PlaidApiClient, PlaidApiError
+from plaid.exceptions import ApiException
 
 
 class RecordingPlaidApi:
@@ -47,11 +46,13 @@ def test_sdk_item_login_error_is_normalized_without_exposing_raw_response():
     class FailingPlaidApi:
         def link_token_create(self, request, **kwargs):
             error = ApiException(status=400, reason="Bad Request")
-            error.body = json.dumps({
-                "error_code": "ITEM_LOGIN_REQUIRED",
-                "error_message": "Please reauthenticate",
-                "request_id": "plaid-request-id",
-            })
+            error.body = json.dumps(
+                {
+                    "error_code": "ITEM_LOGIN_REQUIRED",
+                    "error_message": "Please reauthenticate",
+                    "request_id": "plaid-request-id",
+                }
+            )
             raise error
 
     client = PlaidApiClient(FailingPlaidApi())

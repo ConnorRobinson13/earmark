@@ -9,11 +9,11 @@ unreachable Ollama costs a backfill pass instead of up to ten seconds on every
 write — which used to be paid once per row on the bulk import and Plaid sync
 loops. Nothing in here reaches for the embedding client any more.
 """
+
 from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
-from typing import Optional
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 from ..models import Fund, Transaction, TxType
 
 
-def find_by_plaid_id(db: Session, plaid_transaction_id: str) -> Optional[Transaction]:
+def find_by_plaid_id(db: Session, plaid_transaction_id: str) -> Transaction | None:
     """The ledger row for a Plaid transaction, if one is already posted.
 
     `transactions.plaid_transaction_id` is unique, so posting the same Plaid id
@@ -39,14 +39,14 @@ def find_by_plaid_id(db: Session, plaid_transaction_id: str) -> Optional[Transac
 def _post(
     db: Session,
     *,
-    fund_id: Optional[int],
+    fund_id: int | None,
     type_: TxType,
     amount: Decimal,
     txn_date: date,
     merchant: str = "",
-    notes: Optional[str] = None,
-    plaid_transaction_id: Optional[str] = None,
-    linked_transaction_id: Optional[int] = None,
+    notes: str | None = None,
+    plaid_transaction_id: str | None = None,
+    linked_transaction_id: int | None = None,
 ) -> Transaction:
     t = Transaction(
         fund_id=fund_id,
@@ -70,8 +70,8 @@ def post_expense(
     amount: Decimal,
     txn_date: date,
     merchant: str = "",
-    notes: Optional[str] = None,
-    plaid_transaction_id: Optional[str] = None,
+    notes: str | None = None,
+    plaid_transaction_id: str | None = None,
 ) -> Transaction:
     """Amount is positive from the caller; stored as negative on the fund."""
     return _post(
@@ -89,12 +89,12 @@ def post_expense(
 def post_income(
     db: Session,
     *,
-    fund_id: Optional[int],
+    fund_id: int | None,
     amount: Decimal,
     txn_date: date,
     merchant: str = "",
-    notes: Optional[str] = None,
-    plaid_transaction_id: Optional[str] = None,
+    notes: str | None = None,
+    plaid_transaction_id: str | None = None,
 ) -> Transaction:
     """If fund_id is None, lands in Unassigned. Otherwise tagged directly."""
     return _post(
@@ -112,12 +112,12 @@ def post_income(
 def post_income_signed(
     db: Session,
     *,
-    fund_id: Optional[int],
+    fund_id: int | None,
     amount: Decimal,
     txn_date: date,
     merchant: str = "",
-    notes: Optional[str] = None,
-) -> Optional[Transaction]:
+    notes: str | None = None,
+) -> Transaction | None:
     """Signed-amount income for adjustments (negative allowed). Returns None for zero."""
     if amount == 0:
         return None
@@ -139,7 +139,7 @@ def post_transfer(
     to_fund_id: int,
     amount: Decimal,
     txn_date: date,
-    notes: Optional[str] = None,
+    notes: str | None = None,
 ) -> tuple[Transaction, Transaction]:
     if from_fund_id == to_fund_id:
         raise ValueError("Cannot transfer to the same fund")
@@ -193,7 +193,10 @@ def move_transaction(
         raise LookupError("transaction not found")
     if t.fund_id is None:
         raise ValueError("transaction is not assigned to a fund")
-    if t.type in (TxType.transfer, TxType.assignment) or t.linked_transaction_id is not None:
+    if (
+        t.type in (TxType.transfer, TxType.assignment)
+        or t.linked_transaction_id is not None
+    ):
         raise ValueError("cannot move a transfer or assignment leg between funds")
 
     dest = db.get(Fund, fund_id)
@@ -213,7 +216,7 @@ def post_assignment(
     fund_id: int,
     amount: Decimal,
     txn_date: date,
-    notes: Optional[str] = None,
+    notes: str | None = None,
 ) -> tuple[Transaction, Transaction]:
     """Move money between Unassigned (fund_id=NULL) and a fund.
 

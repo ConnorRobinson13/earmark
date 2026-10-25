@@ -5,6 +5,7 @@ never earned. The web UI refuses one in its input handler; these pin the same ru
 to the endpoint, which is the only place a second client — the MCP server — can
 meet it.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -19,9 +20,10 @@ def test_a_negative_planned_income_is_refused(client):
 
 @pytest.mark.parametrize("amount", ["0", "4200", "4200.55"])
 def test_zero_and_up_are_accepted(client, amount):
-    assert client.put(
-        "/monthly-meta/2026-07", json={"planned_income": amount}
-    ).status_code == 200
+    assert (
+        client.put("/monthly-meta/2026-07", json={"planned_income": amount}).status_code
+        == 200
+    )
 
 
 def test_a_refused_write_leaves_an_existing_figure_alone(client):

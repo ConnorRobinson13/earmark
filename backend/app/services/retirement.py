@@ -17,6 +17,7 @@ a balance rounded through a float is a wrong number on someone's screen. They
 are quantized to cents only on the way out, so the recurrence itself compounds
 at full precision.
 """
+
 from __future__ import annotations
 
 from decimal import ROUND_HALF_UP, Decimal
@@ -100,7 +101,9 @@ class RetirementProjection(ProjectionParams):
     series: list[ProjectionPoint]
 
 
-def project(params: ProjectionParams, starting_balance: Decimal) -> RetirementProjection:
+def project(
+    params: ProjectionParams, starting_balance: Decimal
+) -> RetirementProjection:
     """Compound `starting_balance` to retirement, one year at a time.
 
     The model is deliberately coarse: the whole balance earns the annual return

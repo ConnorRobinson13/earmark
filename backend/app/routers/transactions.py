@@ -135,7 +135,7 @@ def transfer(body: schemas.TransferCreate, db: Session = Depends(get_db)):
             notes=body.notes,
         )
     except ValueError as e:
-        raise HTTPException(400, str(e))
+        raise HTTPException(400, str(e)) from e
     db.commit()
     db.refresh(credit)
     return credit
@@ -168,9 +168,9 @@ def move_transaction(
     try:
         t = tx_svc.move_transaction(db, txn_id=txn_id, fund_id=body.fund_id)
     except LookupError:
-        raise HTTPException(404, "transaction not found")
+        raise HTTPException(404, "transaction not found") from None
     except ValueError as e:
-        raise HTTPException(400, str(e))
+        raise HTTPException(400, str(e)) from e
     db.commit()
     db.refresh(t)
     return t

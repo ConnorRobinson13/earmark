@@ -4,13 +4,13 @@ Compose sets `ENABLE_SCHEDULER=1`. Everywhere else — tests, scripts, a local
 uvicorn — starting the app must not spin up a cron thread that will wake at
 06:00 looking for Plaid credentials.
 """
+
 from __future__ import annotations
 
 import threading
 
-from fastapi.testclient import TestClient
-
 from app.main import app
+from fastapi.testclient import TestClient
 
 
 def _apscheduler_threads() -> list[str]:

@@ -22,12 +22,12 @@ function loadProjection() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) return { ...DEFAULT_PROJECTION, ...JSON.parse(raw) }
-  } catch {}
+  } catch { /* a stored projection that won't parse is ignored; the defaults still render */ }
   return DEFAULT_PROJECTION
 }
 
 function saveProjection(p) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(p)) } catch {}
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(p)) } catch { /* storage can be full or disabled; the projection still works this session */ }
 }
 
 // Long enough that a slider dragged at any human speed asks once, short enough
@@ -472,7 +472,7 @@ function ProjectionPanel({ projection, showReal }) {
         </div>
         {showReal && (
           <div className="row" style={{ fontWeight: 600 }}>
-            <span>In today's dollars</span><div className="spacer" /><span className="num good">{fmt(finalReal)}</span>
+            <span>In today&apos;s dollars</span><div className="spacer" /><span className="num good">{fmt(finalReal)}</span>
           </div>
         )}
       </div>

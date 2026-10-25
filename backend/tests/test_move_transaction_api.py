@@ -5,6 +5,7 @@ the amount leaves the old fund and lands on the new one, the row keeps its
 identity (same id, amount, date, merchant, Plaid id), no second row appears, and
 an invalid destination is refused without touching the ledger.
 """
+
 from __future__ import annotations
 
 from datetime import date
@@ -102,9 +103,7 @@ def test_move_preserves_the_plaid_id(client):
         s.commit()
         txn_id = t.id
 
-    moved = client.post(
-        f"/transactions/{txn_id}/move", json={"fund_id": dining}
-    ).json()
+    moved = client.post(f"/transactions/{txn_id}/move", json={"fund_id": dining}).json()
 
     assert moved["fund_id"] == dining
     assert moved["plaid_transaction_id"] == "plaid-xyz-123"
@@ -112,17 +111,23 @@ def test_move_preserves_the_plaid_id(client):
 
 def test_move_updates_both_fund_balances(client):
     groceries = _make_fund(client, "Groceries")  # 500 assigned, 40 spent -> 460
-    dining = _make_fund(client, "Dining")         # 0
+    dining = _make_fund(client, "Dining")  # 0
     txn = _assigned_expense(client, groceries, "40.00", "Trader Joe's")
 
-    assert Decimal(client.get(f"/funds/{groceries}").json()["balance"]) == Decimal("460.00")
+    assert Decimal(client.get(f"/funds/{groceries}").json()["balance"]) == Decimal(
+        "460.00"
+    )
     assert Decimal(client.get(f"/funds/{dining}").json()["balance"]) == Decimal("0.00")
 
     client.post(f"/transactions/{txn['id']}/move", json={"fund_id": dining})
 
     # The expense left Groceries (balance climbs back) and landed on Dining.
-    assert Decimal(client.get(f"/funds/{groceries}").json()["balance"]) == Decimal("500.00")
-    assert Decimal(client.get(f"/funds/{dining}").json()["balance"]) == Decimal("-40.00")
+    assert Decimal(client.get(f"/funds/{groceries}").json()["balance"]) == Decimal(
+        "500.00"
+    )
+    assert Decimal(client.get(f"/funds/{dining}").json()["balance"]) == Decimal(
+        "-40.00"
+    )
 
 
 def test_move_rejects_an_assignment_leg(client):

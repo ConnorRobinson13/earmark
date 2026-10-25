@@ -1,10 +1,10 @@
 """Fund suggestion: vector similarity first, LLM fallback."""
+
 from __future__ import annotations
 
 import json
 import logging
 from decimal import Decimal
-from typing import Optional
 
 import httpx
 from sqlalchemy import select, text
@@ -20,8 +20,8 @@ VECTOR_MATCH_THRESHOLD = 0.35  # cosine distance — lower means more similar
 
 
 def suggest_fund(
-    db: Session, merchant: str, amount: Optional[Decimal] = None
-) -> tuple[Optional[int], Optional[str], str]:
+    db: Session, merchant: str, amount: Decimal | None = None
+) -> tuple[int | None, str | None, str]:
     """Return (fund_id, fund_name, source) where source ∈ {"vector","llm","none"}."""
     merchant = (merchant or "").strip()
     if not merchant:
@@ -65,8 +65,8 @@ def suggest_fund(
 
 
 def _llm_suggest(
-    db: Session, merchant: str, amount: Optional[Decimal]
-) -> tuple[Optional[int], Optional[str]]:
+    db: Session, merchant: str, amount: Decimal | None
+) -> tuple[int | None, str | None]:
     funds = db.scalars(select(Fund).where(Fund.archived_at.is_(None))).all()
     if not funds:
         return None, None

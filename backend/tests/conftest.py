@@ -6,6 +6,7 @@ Docker. Set `TEST_DATABASE_URL` to point at an existing database instead — eve
 table in it is dropped and rebuilt from the migrations, so never point it at
 real data.
 """
+
 from __future__ import annotations
 
 import os
@@ -60,7 +61,9 @@ def _refuse_the_real_database(url: str) -> None:
     def bare(u: str) -> str:
         # Compare on host/port/database, so a differing driver or password
         # cannot smuggle the same database past the check.
-        return make_url(u).set(drivername="", username="", password="").render_as_string()
+        return (
+            make_url(u).set(drivername="", username="", password="").render_as_string()
+        )
 
     try:
         same = bare(url) == bare(settings.database_url)
@@ -112,20 +115,30 @@ def _empty_the_database(eng: Engine) -> None:
     never asked for.
     """
     with eng.begin() as conn:
-        tables = conn.execute(
-            text("SELECT tablename FROM pg_tables WHERE schemaname = current_schema()")
-        ).scalars().all()
+        tables = (
+            conn.execute(
+                text(
+                    "SELECT tablename FROM pg_tables WHERE schemaname = current_schema()"
+                )
+            )
+            .scalars()
+            .all()
+        )
         if tables:
             names = ", ".join(f'"{t}"' for t in tables)
             conn.execute(text(f"DROP TABLE {names} CASCADE"))
 
-        enums = conn.execute(
-            text(
-                "SELECT t.typname FROM pg_type t "
-                "JOIN pg_namespace n ON n.oid = t.typnamespace "
-                "WHERE t.typtype = 'e' AND n.nspname = current_schema()"
+        enums = (
+            conn.execute(
+                text(
+                    "SELECT t.typname FROM pg_type t "
+                    "JOIN pg_namespace n ON n.oid = t.typnamespace "
+                    "WHERE t.typtype = 'e' AND n.nspname = current_schema()"
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         for name in enums:
             conn.execute(text(f'DROP TYPE "{name}" CASCADE'))
 
@@ -177,9 +190,8 @@ def clean_db(engine):
 
 @pytest.fixture()
 def client(clean_db):
-    from fastapi.testclient import TestClient
-
     from app.main import app
+    from fastapi.testclient import TestClient
 
     with TestClient(app) as c:
         yield c

@@ -11,11 +11,11 @@ the two have drifted. It catches tables, columns, types, nullability, indexes
 and constraints — see the comment below for the one thing it deliberately
 does not compare.
 """
+
 from __future__ import annotations
 
 from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
-
 from app import db as db_module
 from app import models  # noqa: F401 — registers tables on Base.metadata
 

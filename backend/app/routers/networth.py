@@ -3,6 +3,7 @@
 The arithmetic lives in `app.services.networth`; this layer only serializes it
 and owns the commit for the one endpoint that writes.
 """
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
@@ -34,7 +35,9 @@ def _serialize_net_worth(nw: NetWorth) -> dict:
                 "name": a.name,
                 "type": a.type.value,
                 "balance": str(a.current_balance),
-                "last_synced_at": a.last_synced_at.isoformat() if a.last_synced_at else None,
+                "last_synced_at": a.last_synced_at.isoformat()
+                if a.last_synced_at
+                else None,
             }
             for a in nw.accounts
         ],

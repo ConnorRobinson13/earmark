@@ -5,6 +5,7 @@ key by key. The other half of this file is the split the router used to blur:
 reading net worth is a read, and recording a snapshot is a separate, explicit
 request.
 """
+
 from __future__ import annotations
 
 from decimal import Decimal
@@ -25,8 +26,14 @@ def test_networth_response_shape(client):
     body = client.get("/networth").json()
 
     assert set(body) == {
-        "total", "liquid", "investment", "emergency_fund",
-        "credit_debt", "loan_debt", "by_type", "accounts",
+        "total",
+        "liquid",
+        "investment",
+        "emergency_fund",
+        "credit_debt",
+        "loan_debt",
+        "by_type",
+        "accounts",
     }
     assert body["total"] == "1000.00"
     assert body["liquid"] == "1500.00"
@@ -34,7 +41,11 @@ def test_networth_response_shape(client):
     assert body["by_type"]["checking"] == "1500.00"
     assert [a["name"] for a in body["accounts"]] == ["Checking", "Visa"]
     assert set(body["accounts"][0]) == {
-        "id", "name", "type", "balance", "last_synced_at",
+        "id",
+        "name",
+        "type",
+        "balance",
+        "last_synced_at",
     }
     assert body["accounts"][0]["balance"] == "1500.00"
 

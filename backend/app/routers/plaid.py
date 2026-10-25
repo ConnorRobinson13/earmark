@@ -4,6 +4,7 @@ Routes only. The sync itself lives in `services.plaid_sync`, because it is not a
 route and the nightly job needs it too. The Plaid client arrives by dependency
 injection, so a test overrides `get_plaid_client` instead of the SDK.
 """
+
 from __future__ import annotations
 
 import logging
@@ -143,31 +144,33 @@ def list_items(
     items = db.scalars(select(PlaidItem)).all()
     out = []
     for it in items:
-        accts = db.scalars(
-            select(Account).where(Account.plaid_item_id == it.id)
-        ).all()
+        accts = db.scalars(select(Account).where(Account.plaid_item_id == it.id)).all()
         error_code = None
         status_available = None
         if client is not None:
             error_code, status_available = _cached_item_status(client, it)
-        out.append({
-            "id": it.id,
-            "item_id": it.item_id,
-            "institution_name": it.institution_name,
-            "error_code": error_code,
-            "needs_reauthentication": error_code == "ITEM_LOGIN_REQUIRED",
-            "status_available": status_available,
-            "accounts": [
-                {
-                    "id": a.id,
-                    "name": a.name,
-                    "type": a.type.value,
-                    "current_balance": str(a.current_balance),
-                    "last_synced_at": a.last_synced_at.isoformat() if a.last_synced_at else None,
-                }
-                for a in accts
-            ],
-        })
+        out.append(
+            {
+                "id": it.id,
+                "item_id": it.item_id,
+                "institution_name": it.institution_name,
+                "error_code": error_code,
+                "needs_reauthentication": error_code == "ITEM_LOGIN_REQUIRED",
+                "status_available": status_available,
+                "accounts": [
+                    {
+                        "id": a.id,
+                        "name": a.name,
+                        "type": a.type.value,
+                        "current_balance": str(a.current_balance),
+                        "last_synced_at": a.last_synced_at.isoformat()
+                        if a.last_synced_at
+                        else None,
+                    }
+                    for a in accts
+                ],
+            }
+        )
     return out
 
 
@@ -229,4 +232,7 @@ def sync_transactions(
         raise HTTPException(400, "no Plaid items linked")
     result = plaid_sync.run_sync(db, client)
     clear_item_status_cache()
-    return {"added": result.added, "issues": [issue.as_dict() for issue in result.issues]}
+    return {
+        "added": result.added,
+        "issues": [issue.as_dict() for issue in result.issues],
+    }

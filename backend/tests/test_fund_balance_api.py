@@ -5,6 +5,7 @@ from it — and the balance the API reports back is the signed sum of what was
 posted. This is the first test that exercises router → service → database as one
 piece, so it is also the proof that the disposable-database seam works.
 """
+
 from __future__ import annotations
 
 from datetime import date
@@ -16,20 +17,26 @@ def test_fund_balance_is_assignments_minus_spending(client):
 
     fund_id = client.post("/funds", json={"name": "Groceries"}).json()["id"]
 
-    assert client.post(
-        "/transactions/assign",
-        json={"fund_id": fund_id, "amount": "400.00", "date": today},
-    ).status_code == 201
-    assert client.post(
-        "/transactions/quick-add",
-        json={
-            "fund_id": fund_id,
-            "amount": "125.50",
-            "date": today,
-            "merchant": "Trader Joe's",
-            "type": "expense",
-        },
-    ).status_code == 201
+    assert (
+        client.post(
+            "/transactions/assign",
+            json={"fund_id": fund_id, "amount": "400.00", "date": today},
+        ).status_code
+        == 201
+    )
+    assert (
+        client.post(
+            "/transactions/quick-add",
+            json={
+                "fund_id": fund_id,
+                "amount": "125.50",
+                "date": today,
+                "merchant": "Trader Joe's",
+                "type": "expense",
+            },
+        ).status_code
+        == 201
+    )
 
     fund = client.get(f"/funds/{fund_id}").json()
     assert Decimal(fund["balance"]) == Decimal("274.50")

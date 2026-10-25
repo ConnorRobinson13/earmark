@@ -5,15 +5,23 @@ worth pinning down here are arithmetic — which account types count as what, an
 that a debt fund paid past its target stops helping. The HTTP contract is
 covered separately in `test_networth_api.py`.
 """
+
 from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
 
 import pytest
-
 from app import db as db_module
-from app.models import Account, AccountType, Fund, FundKind, GoalType, Transaction, TxType
+from app.models import (
+    Account,
+    AccountType,
+    Fund,
+    FundKind,
+    GoalType,
+    Transaction,
+    TxType,
+)
 from app.services import networth as svc
 from app.services.balances import liquid_cash
 

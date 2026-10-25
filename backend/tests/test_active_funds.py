@@ -12,13 +12,13 @@ month's end still counted as active in it — while the dashboard and the servic
 read archiving as global. Global wins here, and the bulk tests pin what that
 changed.
 """
+
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 import pytest
-
 from app.models import Fund, FundKind, Transaction, TxType
 from app.services.balances import active_funds_in_month, gather_cashflow_inputs
 
@@ -27,7 +27,7 @@ MONTH = date(2026, 3, 1)
 NEXT = date(2026, 4, 1)
 
 #: Well before the month, so `created_at` is never the reason a fund is absent.
-LONG_AGO = datetime(2025, 1, 1, tzinfo=timezone.utc)
+LONG_AGO = datetime(2025, 1, 1, tzinfo=UTC)
 
 
 @pytest.fixture()
@@ -55,18 +55,18 @@ def test_a_fund_created_mid_month_is_active_in_it(db):
     """Created before the month ends, not before it starts — the fund exists
     for part of the month, and a month it exists in any of is a month it shows
     in."""
-    _fund(db, "Mid-March", created_at=datetime(2026, 3, 15, tzinfo=timezone.utc))
+    _fund(db, "Mid-March", created_at=datetime(2026, 3, 15, tzinfo=UTC))
     assert _names(active_funds_in_month(db, MONTH)) == ["Mid-March"]
 
 
 def test_a_fund_created_after_the_month_is_not_active_in_it(db):
-    _fund(db, "April", created_at=datetime(2026, 4, 2, tzinfo=timezone.utc))
+    _fund(db, "April", created_at=datetime(2026, 4, 2, tzinfo=UTC))
     assert active_funds_in_month(db, MONTH) == []
 
 
 def test_a_fund_archived_mid_month_is_not_active_in_it(db):
     """Archiving is global, so it applies to the month it happened in too."""
-    _fund(db, "Archived", archived_at=datetime(2026, 3, 15, tzinfo=timezone.utc))
+    _fund(db, "Archived", archived_at=datetime(2026, 3, 15, tzinfo=UTC))
     assert active_funds_in_month(db, MONTH) == []
 
 
@@ -78,7 +78,7 @@ def test_a_fund_archived_after_the_month_is_not_active_in_it_either(db):
     from every month, which is what every other total in the app already
     assumed.
     """
-    _fund(db, "Archived Later", archived_at=datetime(2026, 5, 1, tzinfo=timezone.utc))
+    _fund(db, "Archived Later", archived_at=datetime(2026, 5, 1, tzinfo=UTC))
     assert active_funds_in_month(db, MONTH) == []
 
 
@@ -116,10 +116,18 @@ def _every_shape(db, kind: FundKind) -> dict[str, Fund]:
     """
     return {
         "visible": _fund(db, "Groceries", kind),
-        "new": _fund(db, "Mid-March", kind, created_at=datetime(2026, 3, 15, tzinfo=timezone.utc)),
-        "later": _fund(db, "Archived in May", kind, archived_at=datetime(2026, 5, 1, tzinfo=timezone.utc)),
-        "archived": _fund(db, "Archived in March", kind, archived_at=datetime(2026, 3, 15, tzinfo=timezone.utc)),
-        "ended": _fund(db, "Ended in February", kind, effective_to_month=date(2026, 2, 28)),
+        "new": _fund(
+            db, "Mid-March", kind, created_at=datetime(2026, 3, 15, tzinfo=UTC)
+        ),
+        "later": _fund(
+            db, "Archived in May", kind, archived_at=datetime(2026, 5, 1, tzinfo=UTC)
+        ),
+        "archived": _fund(
+            db, "Archived in March", kind, archived_at=datetime(2026, 3, 15, tzinfo=UTC)
+        ),
+        "ended": _fund(
+            db, "Ended in February", kind, effective_to_month=date(2026, 2, 28)
+        ),
     }
 
 
@@ -174,7 +182,10 @@ def test_bulk_copy_copies_the_active_funds(client, db, mixed_funds):
 
     assert body["funds_updated"] == len(ACTIVE_FUNDS)
     assert Decimal(body["total_moved"]) == Decimal("200.00")
-    assert [f["name"] for f in client.get("/dashboard", params={"month": "2026-04"}).json()["funds"]] == ACTIVE_FUNDS
+    assert [
+        f["name"]
+        for f in client.get("/dashboard", params={"month": "2026-04"}).json()["funds"]
+    ] == ACTIVE_FUNDS
 
 
 def test_bulk_copy_no_longer_resurrects_an_archived_fund(client, db, mixed_funds):
@@ -224,7 +235,10 @@ def test_bulk_copy_still_reinstates_a_fund_ended_from_the_target_month(client, d
     assert body["funds_resurrected"] == 1
     db.expire_all()
     assert db.get(Fund, fund.id).effective_to_month is None
-    assert [f["name"] for f in client.get("/dashboard", params={"month": "2026-04"}).json()["funds"]] == ["Rent"]
+    assert [
+        f["name"]
+        for f in client.get("/dashboard", params={"month": "2026-04"}).json()["funds"]
+    ] == ["Rent"]
 
 
 @pytest.fixture()
@@ -265,7 +279,9 @@ def test_pending_settlements_drops_a_goal_created_after_the_month(client, db):
     """The clause the old filter also ignored, seen from the other end: a goal
     assigned in April has nothing pending in March, because in March it did not
     exist."""
-    goal = _fund(db, "April Goal", FundKind.goal, created_at=datetime(2026, 4, 2, tzinfo=timezone.utc))
+    goal = _fund(
+        db, "April Goal", FundKind.goal, created_at=datetime(2026, 4, 2, tzinfo=UTC)
+    )
     for when in (date(2026, 3, 10), date(2026, 4, 10)):
         db.add(
             Transaction(

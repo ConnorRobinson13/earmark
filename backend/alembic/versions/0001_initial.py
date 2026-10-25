@@ -5,16 +5,17 @@ Revises:
 Create Date: 2026-05-16
 
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
 from pgvector.sqlalchemy import Vector
 
 revision: str = "0001"
-down_revision: Union[str, None] = None
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = None
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 EMBEDDING_DIM = 1024  # mxbai-embed-large
 
@@ -32,7 +33,9 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer, primary_key=True),
         sa.Column("name", sa.String(120), nullable=False),
         sa.Column("type", acct_type, nullable=False),
-        sa.Column("current_balance", sa.Numeric(12, 2), nullable=False, server_default="0"),
+        sa.Column(
+            "current_balance", sa.Numeric(12, 2), nullable=False, server_default="0"
+        ),
         sa.Column("last_synced_at", sa.DateTime(timezone=True)),
         sa.Column("plaid_account_id", sa.String(120)),
     )
@@ -46,7 +49,12 @@ def upgrade() -> None:
         sa.Column("target_date", sa.Date),
         sa.Column("backed_by_account_id", sa.Integer, sa.ForeignKey("accounts.id")),
         sa.Column("sort_order", sa.Integer, nullable=False, server_default="0"),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
         sa.Column("archived_at", sa.DateTime(timezone=True)),
     )
 
@@ -60,9 +68,16 @@ def upgrade() -> None:
         sa.Column("merchant", sa.String(200), nullable=False, server_default=""),
         sa.Column("notes", sa.Text),
         sa.Column("plaid_transaction_id", sa.String(120), unique=True),
-        sa.Column("linked_transaction_id", sa.Integer, sa.ForeignKey("transactions.id")),
+        sa.Column(
+            "linked_transaction_id", sa.Integer, sa.ForeignKey("transactions.id")
+        ),
         sa.Column("embedding", Vector(EMBEDDING_DIM)),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
     )
     op.create_index("ix_transactions_date", "transactions", ["date"])
     op.create_index("ix_transactions_fund_id", "transactions", ["fund_id"])
@@ -81,7 +96,12 @@ def upgrade() -> None:
         sa.Column("access_token", sa.String(200), nullable=False),
         sa.Column("institution_name", sa.String(200)),
         sa.Column("cursor", sa.String(200)),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
     )
 
     op.create_table(
@@ -95,7 +115,12 @@ def upgrade() -> None:
         sa.Column("account_id", sa.Integer, sa.ForeignKey("accounts.id")),
         sa.Column("suggested_fund_id", sa.Integer, sa.ForeignKey("funds.id")),
         sa.Column("status", inbox_status, nullable=False, server_default="pending"),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
         sa.Column("reviewed_at", sa.DateTime(timezone=True)),
     )
 

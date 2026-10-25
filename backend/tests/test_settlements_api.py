@@ -5,6 +5,7 @@ back. These tests pin that round trip through the HTTP layer — every account
 the settlement touched must read exactly what it read before — plus the input
 rules the handler enforces on the way in.
 """
+
 from __future__ import annotations
 
 from datetime import date
@@ -12,7 +13,9 @@ from decimal import Decimal
 
 
 def _accounts_by_name(client) -> dict[str, Decimal]:
-    return {a["name"]: Decimal(a["current_balance"]) for a in client.get("/accounts").json()}
+    return {
+        a["name"]: Decimal(a["current_balance"]) for a in client.get("/accounts").json()
+    }
 
 
 def _goal_backed_by(client, account_id: int, *, name: str = "New Roof") -> int:
@@ -25,13 +28,18 @@ def _goal_backed_by(client, account_id: int, *, name: str = "New Roof") -> int:
 def test_settle_then_undo_restores_every_account_balance(client):
     today = date.today().isoformat()
     checking = client.post(
-        "/accounts", json={"name": "Checking", "type": "checking", "current_balance": "2000.00"}
+        "/accounts",
+        json={"name": "Checking", "type": "checking", "current_balance": "2000.00"},
     ).json()["id"]
     savings = client.post(
-        "/accounts", json={"name": "Savings", "type": "savings", "current_balance": "500.00"}
+        "/accounts",
+        json={"name": "Savings", "type": "savings", "current_balance": "500.00"},
     ).json()["id"]
     goal_id = _goal_backed_by(client, savings)
-    client.post("/transactions/assign", json={"fund_id": goal_id, "amount": "300.00", "date": today})
+    client.post(
+        "/transactions/assign",
+        json={"fund_id": goal_id, "amount": "300.00", "date": today},
+    )
 
     before = _accounts_by_name(client)
 
@@ -52,13 +60,17 @@ def test_settle_reduces_pending_and_undo_restores_it(client):
     """The To-Move panel's view of the same round trip."""
     today = date.today().isoformat()
     checking = client.post(
-        "/accounts", json={"name": "Checking", "type": "checking", "current_balance": "2000.00"}
+        "/accounts",
+        json={"name": "Checking", "type": "checking", "current_balance": "2000.00"},
     ).json()["id"]
     savings = client.post(
         "/accounts", json={"name": "Savings", "type": "savings", "current_balance": "0"}
     ).json()["id"]
     goal_id = _goal_backed_by(client, savings)
-    client.post("/transactions/assign", json={"fund_id": goal_id, "amount": "300.00", "date": today})
+    client.post(
+        "/transactions/assign",
+        json={"fund_id": goal_id, "amount": "300.00", "date": today},
+    )
 
     pending = client.get("/settlements/pending").json()
     assert [(p["goal_id"], Decimal(p["pending_amount"])) for p in pending] == [
@@ -81,21 +93,26 @@ def test_settle_reduces_pending_and_undo_restores_it(client):
     assert Decimal(still_pending[0]["pending_amount"]) == Decimal("180.00")
 
     client.delete(f"/settlements/{body['id']}")
-    assert Decimal(client.get("/settlements/pending").json()[0]["pending_amount"]) == Decimal(
-        "300.00"
-    )
+    assert Decimal(
+        client.get("/settlements/pending").json()[0]["pending_amount"]
+    ) == Decimal("300.00")
 
 
 def test_settle_rejects_non_positive_amount(client):
     today = date.today().isoformat()
     checking = client.post(
-        "/accounts", json={"name": "Checking", "type": "checking", "current_balance": "2000.00"}
+        "/accounts",
+        json={"name": "Checking", "type": "checking", "current_balance": "2000.00"},
     ).json()["id"]
     savings = client.post(
-        "/accounts", json={"name": "Savings", "type": "savings", "current_balance": "500.00"}
+        "/accounts",
+        json={"name": "Savings", "type": "savings", "current_balance": "500.00"},
     ).json()["id"]
     goal_id = _goal_backed_by(client, savings)
-    client.post("/transactions/assign", json={"fund_id": goal_id, "amount": "300.00", "date": today})
+    client.post(
+        "/transactions/assign",
+        json={"fund_id": goal_id, "amount": "300.00", "date": today},
+    )
     before = _accounts_by_name(client)
 
     for amount in ("0", "-25.00"):
@@ -108,9 +125,9 @@ def test_settle_rejects_non_positive_amount(client):
     # Rejected settlements leave nothing behind: no money moved, and pending is
     # untouched — a recorded settlement would have drawn it down.
     assert _accounts_by_name(client) == before
-    assert Decimal(client.get("/settlements/pending").json()[0]["pending_amount"]) == Decimal(
-        "300.00"
-    )
+    assert Decimal(
+        client.get("/settlements/pending").json()[0]["pending_amount"]
+    ) == Decimal("300.00")
 
 
 def test_settle_unknown_goal_is_404(client):
@@ -134,10 +151,12 @@ def test_undo_restores_balances_for_a_sub_cent_amount(client):
     residue no undo could reverse."""
     today = date.today().isoformat()
     checking = client.post(
-        "/accounts", json={"name": "Checking", "type": "checking", "current_balance": "2000.00"}
+        "/accounts",
+        json={"name": "Checking", "type": "checking", "current_balance": "2000.00"},
     ).json()["id"]
     savings = client.post(
-        "/accounts", json={"name": "Savings", "type": "savings", "current_balance": "500.00"}
+        "/accounts",
+        json={"name": "Savings", "type": "savings", "current_balance": "500.00"},
     ).json()["id"]
     goal_id = _goal_backed_by(client, savings)
     before = _accounts_by_name(client)
@@ -147,7 +166,9 @@ def test_undo_restores_balances_for_a_sub_cent_amount(client):
         json={"amount": "300.005", "from_account_id": checking, "settled_at": today},
     ).json()
     moved = _accounts_by_name(client)
-    assert moved["Checking"] + moved["Savings"] == before["Checking"] + before["Savings"]
+    assert (
+        moved["Checking"] + moved["Savings"] == before["Checking"] + before["Savings"]
+    )
 
     client.delete(f"/settlements/{settled['id']}")
     assert _accounts_by_name(client) == before
@@ -159,7 +180,8 @@ def test_settling_into_the_account_the_cash_came_from_is_a_no_op(client):
     it must not conjure money out of the round trip."""
     today = date.today().isoformat()
     checking = client.post(
-        "/accounts", json={"name": "Checking", "type": "checking", "current_balance": "2000.00"}
+        "/accounts",
+        json={"name": "Checking", "type": "checking", "current_balance": "2000.00"},
     ).json()["id"]
     goal_id = _goal_backed_by(client, checking)
     before = _accounts_by_name(client)
@@ -179,7 +201,8 @@ def test_settle_without_a_source_account_only_credits_the_goal_account(client):
     from. The destination still moves, and undoing still puts it back."""
     today = date.today().isoformat()
     savings = client.post(
-        "/accounts", json={"name": "Savings", "type": "savings", "current_balance": "500.00"}
+        "/accounts",
+        json={"name": "Savings", "type": "savings", "current_balance": "500.00"},
     ).json()["id"]
     goal_id = _goal_backed_by(client, savings)
     before = _accounts_by_name(client)

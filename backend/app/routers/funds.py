@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, update
@@ -48,13 +48,17 @@ def update_fund(fund_id: int, body: schemas.FundUpdate, db: Session = Depends(ge
         raise HTTPException(404)
     data = body.model_dump(exclude_unset=True)
     if "archived" in data:
-        f.archived_at = datetime.now(timezone.utc) if data.pop("archived") else None
+        f.archived_at = datetime.now(UTC) if data.pop("archived") else None
     backing_changed = "backed_by_account_id" in data
     for k, v in data.items():
         setattr(f, k, v)
     db.flush()
     # If this is a goal newly linked to an account, sync its balance to match.
-    if backing_changed and f.backed_by_account_id is not None and f.kind.value == "goal":
+    if (
+        backing_changed
+        and f.backed_by_account_id is not None
+        and f.kind.value == "goal"
+    ):
         sync_goals_for_account(db, f.backed_by_account_id)
     db.commit()
     db.refresh(f)
@@ -64,7 +68,10 @@ def update_fund(fund_id: int, body: schemas.FundUpdate, db: Session = Depends(ge
 @router.delete("/{fund_id}")
 def archive_fund(
     fund_id: int,
-    month: str | None = Query(None, description="YYYY-MM or YYYY-MM-DD — if set, end the fund from this month forward only"),
+    month: str | None = Query(
+        None,
+        description="YYYY-MM or YYYY-MM-DD — if set, end the fund from this month forward only",
+    ),
     db: Session = Depends(get_db),
 ):
     """Delete a fund.
@@ -86,11 +93,14 @@ def archive_fund(
         swept = 0
         if bal != 0:
             tx_svc.post_assignment(
-                db, fund_id=f.id, amount=-bal,
-                txn_date=date.today(), notes="Swept on archive",
+                db,
+                fund_id=f.id,
+                amount=-bal,
+                txn_date=date.today(),
+                notes="Swept on archive",
             )
             swept = bal
-        f.archived_at = datetime.now(timezone.utc)
+        f.archived_at = datetime.now(UTC)
         db.commit()
         return {"archived": True, "swept_to_unassigned": str(swept)}
 
@@ -103,8 +113,11 @@ def archive_fund(
     swept = 0
     if bal != 0:
         tx_svc.post_assignment(
-            db, fund_id=f.id, amount=-bal,
-            txn_date=prior_day, notes=f"Swept on end-of-month {prior_day}",
+            db,
+            fund_id=f.id,
+            amount=-bal,
+            txn_date=prior_day,
+            notes=f"Swept on end-of-month {prior_day}",
         )
         swept = bal
 
