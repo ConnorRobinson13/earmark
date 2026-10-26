@@ -18,6 +18,7 @@ export const keys = {
   inbox: () => '/inbox',
   funds: () => '/funds?include_archived=false',
   fund: (id) => `/funds/${id}`,
+  categories: () => '/categories',
   fundTransactions: (id) => `/transactions?fund_id=${id}&limit=200`,
   pendingSettlements: (month) => `/settlements/pending${month ? `?month=${month}` : ''}`,
   networth: () => '/networth',

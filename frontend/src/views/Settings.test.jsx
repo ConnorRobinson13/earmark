@@ -107,7 +107,9 @@ describe('Settings', () => {
 
     await screen.findByText('Chase')
     const own = adapter.requested.filter(k => !SHELL_KEYS.includes(k))
-    expect([...new Set(own)].sort()).toEqual([keys.accounts(), keys.funds(), keys.plaidItems()].sort())
+    expect([...new Set(own)].sort()).toEqual(
+      [keys.accounts(), keys.funds(), keys.categories(), keys.plaidItems()].sort(),
+    )
   })
 
   it('refetches the accounts once when a balance is edited', async () => {

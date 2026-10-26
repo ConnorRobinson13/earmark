@@ -58,9 +58,10 @@ describe('FundDetail', () => {
 
     await screen.findByRole('heading', { name: 'Groceries' })
     const own = adapter.requested.filter(k => !SHELL_KEYS.includes(k))
-    // The fund, its history, and the fund list that feeds the "move to" picker.
+    // The fund, its history, the fund list that feeds the "move to" picker, and
+    // the category list behind the category picker.
     expect([...new Set(own)].sort()).toEqual(
-      [keys.fund('7'), keys.fundTransactions('7'), keys.funds()].sort(),
+      [keys.fund('7'), keys.fundTransactions('7'), keys.funds(), keys.categories()].sort(),
     )
   })
 
@@ -84,9 +85,13 @@ describe('FundDetail', () => {
     renderApp(routes(), { route: '/funds/7' })
 
     await screen.findByRole('heading', { name: 'Groceries' })
-    // The +500 assignment leg is double-entry — no picker on it, so the only
-    // combobox on the page is the expense's.
-    expect(screen.getAllByRole('combobox').length).toBe(1)
+    // The +500 assignment leg is double-entry — no move picker on it, so the only
+    // move picker on the page is the expense's. The category picker is labelled
+    // "Category" and is not a move picker, so it is not counted.
+    const movePickers = screen
+      .getAllByRole('combobox')
+      .filter(el => el.getAttribute('aria-label') !== 'Category')
+    expect(movePickers.length).toBe(1)
   })
 
   it('surfaces the server message when a move is rejected', async () => {

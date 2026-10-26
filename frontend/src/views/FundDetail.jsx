@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { api, fmt } from '../api'
 import { keys, useInvalidate, useResource, writes } from '../resource'
 import ErrorCard from '../components/ErrorCard'
+import CategoryPicker from '../components/CategoryPicker'
 import { Icon } from '../components/Icons'
 import { isGoal } from '../funds'
 
@@ -56,10 +57,11 @@ export default function FundDetail() {
   return (
     <div>
       <div className="fd-hero">
-        <div className="crumbs">
-          <Link to="/" style={{ color: 'var(--text-dim)' }}>Dashboard</Link>
-          <span> / </span>
-          <span>{fund.category || 'Uncategorized'}</span>
+        <div className="fd-back-row">
+          <Link to="/" className="btn sm fd-back">
+            <Icon name="chev_l" /> Back to dashboard
+          </Link>
+          <span className="crumbs">{fund.category || 'Uncategorized'}</span>
         </div>
         <h1>{fund.name}</h1>
 
@@ -84,15 +86,11 @@ export default function FundDetail() {
 
         <div className="row" style={{ marginTop: 18, gap: 10 }}>
           <span className="eyebrow">Category</span>
-          <input
-            className="fd-category-input"
-            aria-label="Category"
-            defaultValue={fund.category || ''}
-            placeholder="Uncategorized"
-            onBlur={async (e) => {
-              const v = e.target.value.trim()
-              if (v === (fund.category || '')) return
-              await api.funds.update(fund.id, { category: v || null })
+          <CategoryPicker
+            value={fund.category_id ?? null}
+            onChange={async (categoryId) => {
+              if (categoryId === (fund.category_id ?? null)) return
+              await api.funds.update(fund.id, { category_id: categoryId })
               invalidate(writes.ledger)
             }}
           />

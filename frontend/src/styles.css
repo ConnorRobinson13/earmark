@@ -1836,3 +1836,9 @@ textarea { height: auto; padding: 10px 12px; }
   from { transform: translateY(18px); opacity: 0; }
   to   { transform: translateY(0); opacity: 1; }
 }
+
+/* Back to the dashboard, shown above a fund's name. Styled as a real button so
+   it reads as navigation rather than a faint breadcrumb. */
+.fd-back-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.fd-back-row .crumbs { margin: 0; }
+.fd-back.btn { gap: 6px; }

@@ -93,9 +93,31 @@ class Fund(Base):
     # start day is <= effective_to_month. Used by "delete from this month" so
     # past months keep the fund while future months don't.
     effective_to_month: Mapped[date | None] = mapped_column(Date, nullable=True)
-    category: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    # Which category this fund rolls up under. Categories are a managed list
+    # (see `Category`), so a fund can only point at one that exists.
+    category_id: Mapped[int | None] = mapped_column(
+        ForeignKey("categories.id"), nullable=True
+    )
+    category_row: Mapped[Category | None] = relationship()
 
     transactions: Mapped[list[Transaction]] = relationship(back_populates="fund")
+
+    @property
+    def category(self) -> str | None:
+        """The category's name, which is what the API and the grouping show."""
+        return self.category_row.name if self.category_row else None
+
+
+class Category(Base):
+    """A category funds can be grouped under. Created and chosen from a list."""
+
+    __tablename__ = "categories"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(60), unique=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
 
 class Account(Base):

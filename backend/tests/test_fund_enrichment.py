@@ -22,7 +22,15 @@ from decimal import Decimal
 
 import pytest
 from app import schemas
-from app.models import Fund, FundKind, GoalSettlement, GoalType, Transaction, TxType
+from app.models import (
+    Category,
+    Fund,
+    FundKind,
+    GoalSettlement,
+    GoalType,
+    Transaction,
+    TxType,
+)
 from app.services.balances import enrich_funds
 from sqlalchemy import event
 
@@ -51,8 +59,11 @@ def funds(db) -> dict[str, Fund]:
     funds it was handed: its transactions are large enough that leaking them
     into any other fund's total would move that fund's literal.
     """
+    food = Category(name="Food")
+    db.add(food)
+    db.flush()
     groceries = Fund(
-        name="Groceries", kind=FundKind.operational, category="Food", due_day=5
+        name="Groceries", kind=FundKind.operational, category_row=food, due_day=5
     )
     emergency = Fund(
         name="Emergency Fund",

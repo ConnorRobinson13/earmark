@@ -30,6 +30,12 @@ export const api = {
     archive: (id, month) => req(`/funds/${id}${month ? `?month=${month}` : ''}`, { method: 'DELETE' }),
   },
 
+  categories: {
+    list: () => req('/categories'),
+    create: (body) => req('/categories', { method: 'POST', body: JSON.stringify(body) }),
+    remove: (id) => req(`/categories/${id}`, { method: 'DELETE' }),
+  },
+
   transactions: {
     list: (params = {}) => {
       const qs = new URLSearchParams(params).toString()

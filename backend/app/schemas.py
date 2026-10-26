@@ -19,7 +19,7 @@ class FundBase(BaseModel):
     backed_by_account_id: int | None = None
     min_payment: Decimal | None = None  # debt funds: fixed monthly payment
     sort_order: int = 0
-    category: str | None = None
+    category_id: int | None = None  # one of the categories from GET /categories
     due_day: int = Field(default=1, ge=1, le=31)  # day-of-month the bill is due
 
 
@@ -36,7 +36,7 @@ class FundUpdate(BaseModel):
     backed_by_account_id: int | None = None
     min_payment: Decimal | None = None
     sort_order: int | None = None
-    category: str | None = None
+    category_id: int | None = None  # null clears the category
     due_day: int | None = Field(default=None, ge=1, le=31)
     archived: bool | None = None
 
@@ -44,6 +44,8 @@ class FundUpdate(BaseModel):
 class FundOut(FundBase):
     model_config = ConfigDict(from_attributes=True)
     id: int
+    category: str | None = None  # the chosen category's name, for display
+
     balance: Decimal = Decimal("0")
     net_spent_this_month: Decimal = Decimal("0")
     assigned_this_month: Decimal = Decimal("0")
@@ -51,6 +53,19 @@ class FundOut(FundBase):
     contribution_ytd: Decimal | None = None  # contribution goals only
     contribution_year: int | None = None  # contribution goals only
     archived_at: datetime | None = None
+
+
+# ---------- Categories ----------
+
+
+class CategoryCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=60)
+
+
+class CategoryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    name: str
 
 
 # ---------- Transactions ----------
