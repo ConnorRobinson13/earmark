@@ -1,28 +1,22 @@
-"""Fund suggestion: vector similarity first, LLM fallback."""
+"""Fund suggestion: nearest past transaction by embedding, computed locally."""
 
 from __future__ import annotations
 
-import json
-import logging
-from decimal import Decimal
-
-import httpx
-from sqlalchemy import select, text
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from ..config import settings
-from ..models import Fund
 from .embeddings import backfill_missing_embeddings, embed_text_or_none
-
-log = logging.getLogger(__name__)
 
 VECTOR_MATCH_THRESHOLD = 0.35  # cosine distance — lower means more similar
 
 
-def suggest_fund(
-    db: Session, merchant: str, amount: Decimal | None = None
-) -> tuple[int | None, str | None, str]:
-    """Return (fund_id, fund_name, source) where source ∈ {"vector","llm","none"}."""
+def suggest_fund(db: Session, merchant: str) -> tuple[int | None, str | None, str]:
+    """Return (fund_id, fund_name, source) where source ∈ {"vector","none"}.
+
+    There is no hosted-model fallback. Suggestions come from local embeddings
+    alone, so nothing about a transaction leaves the machine here. The AI
+    auto-sort in services/autosort.py is a separate, opt-in path (OpenRouter).
+    """
     merchant = (merchant or "").strip()
     if not merchant:
         return None, None, "none"
@@ -52,58 +46,4 @@ def suggest_fund(
         if row and row.dist is not None and row.dist <= VECTOR_MATCH_THRESHOLD:
             return row.fund_id, row.name, "vector"
 
-    # LLM fallback
-    if settings.anthropic_api_key:
-        try:
-            fund_id, fund_name = _llm_suggest(db, merchant, amount)
-            if fund_id is not None:
-                return fund_id, fund_name, "llm"
-        except Exception as e:
-            log.warning("llm suggest failed: %s", e)
-
     return None, None, "none"
-
-
-def _llm_suggest(
-    db: Session, merchant: str, amount: Decimal | None
-) -> tuple[int | None, str | None]:
-    funds = db.scalars(select(Fund).where(Fund.archived_at.is_(None))).all()
-    if not funds:
-        return None, None
-
-    fund_list = "\n".join(f"- {f.id}: {f.name} ({f.kind.value})" for f in funds)
-    prompt = (
-        "Given a transaction, return the single best-matching fund ID from the list.\n\n"
-        f"Transaction:\n  Merchant: {merchant}\n"
-        + (f"  Amount: ${amount}\n" if amount is not None else "")
-        + f"\nFunds:\n{fund_list}\n\n"
-        'Respond with JSON only: {"fund_id": <id>} or {"fund_id": null} if none fit.'
-    )
-    resp = httpx.post(
-        "https://api.anthropic.com/v1/messages",
-        headers={
-            "x-api-key": settings.anthropic_api_key,
-            "anthropic-version": "2023-06-01",
-            "content-type": "application/json",
-        },
-        json={
-            "model": settings.anthropic_model,
-            "max_tokens": 100,
-            "messages": [{"role": "user", "content": prompt}],
-        },
-        timeout=15.0,
-    )
-    resp.raise_for_status()
-    body = resp.json()
-    text_out = body["content"][0]["text"].strip()
-    # be lenient — extract first {...}
-    start = text_out.find("{")
-    end = text_out.rfind("}")
-    if start == -1 or end == -1:
-        return None, None
-    parsed = json.loads(text_out[start : end + 1])
-    fund_id = parsed.get("fund_id")
-    if fund_id is None:
-        return None, None
-    fund = db.get(Fund, fund_id)
-    return (fund.id, fund.name) if fund else (None, None)

@@ -23,7 +23,7 @@ services:
       ENABLE_SCHEDULER: "1"   # daily Plaid sync at 06:00 — opt-in, see app/main.py
       OLLAMA_URL: http://host.docker.internal:11434
       EMBEDDING_MODEL: mxbai-embed-large
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       PLAID_CLIENT_ID: ${PLAID_CLIENT_ID:-}
       PLAID_SECRET: ${PLAID_SECRET:-}
       PLAID_ENV: ${PLAID_ENV:-sandbox}

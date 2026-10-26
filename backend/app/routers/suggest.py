@@ -10,5 +10,5 @@ router = APIRouter(prefix="/suggest", tags=["suggest"])
 
 @router.post("", response_model=schemas.SuggestResponse)
 def suggest(body: schemas.SuggestRequest, db: Session = Depends(get_db)):
-    fund_id, fund_name, source = suggest_fund(db, body.merchant, body.amount)
+    fund_id, fund_name, source = suggest_fund(db, body.merchant)
     return {"fund_id": fund_id, "fund_name": fund_name, "source": source}

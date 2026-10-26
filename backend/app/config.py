@@ -10,9 +10,6 @@ class Settings(BaseSettings):
     # the vector width is baked into the transactions table.
     embedding_model: str = "mxbai-embed-large"
 
-    anthropic_api_key: str = ""
-    anthropic_model: str = "claude-sonnet-4-6"
-
     # OpenRouter powers AI-assisted transaction auto-sorting. Read from the
     # OPENROUTER_API_KEY environment variable; left empty the feature is gated
     # off (no outbound call is ever made). The model id is pinned rather than
