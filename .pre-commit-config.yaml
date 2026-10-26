@@ -1,0 +1,20 @@
+# Runs the same lint and format checks as CI, before a commit lands.
+#   pip install pre-commit && pre-commit install
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.1
+    hooks:
+      - id: ruff
+        args: [--fix]
+        files: ^(backend|mcp)/
+      - id: ruff-format
+        files: ^(backend|mcp)/
+
+  - repo: local
+    hooks:
+      - id: eslint
+        name: eslint (frontend)
+        entry: npm --prefix frontend run lint --silent
+        language: system
+        files: ^frontend/src/.*\.jsx?$
+        pass_filenames: false
