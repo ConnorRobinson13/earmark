@@ -157,7 +157,7 @@ def resuggest(inbox_id: int, db: Session = Depends(get_db)):
     item = db.get(PlaidInbox, inbox_id)
     if not item:
         raise HTTPException(404)
-    fund_id, _name, _src = suggest_fund(db, item.merchant, item.amount)
+    fund_id, _name, _src = suggest_fund(db, item.merchant)
     item.suggested_fund_id = fund_id
     db.commit()
     db.refresh(item)

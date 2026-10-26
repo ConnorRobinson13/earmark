@@ -208,7 +208,7 @@ class SuggestRequest(BaseModel):
 class SuggestResponse(BaseModel):
     fund_id: int | None
     fund_name: str | None
-    source: str  # "vector" | "llm" | "none"
+    source: str  # "vector" | "none"
 
 
 # ---------- AI auto-sort ----------

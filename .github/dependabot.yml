@@ -2,7 +2,7 @@ version: 2
 
 # Minor and patch bumps are grouped and opened weekly. Major bumps are held
 # back on purpose: several are breaking (React 19, plaid-python 24 -> 46,
-# anthropic 0.x -> 2.x, vitest 3 -> 5), so each one is a planned change with
+# vitest 3 -> 5), so each one is a planned change with
 # its own review, not a bot PR to merge on green CI.
 updates:
   - package-ecosystem: pip

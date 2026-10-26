@@ -284,7 +284,7 @@ def _ingest(db: Session, t: dict[str, Any], floor: date | None) -> bool:
     # doesn't want to categorize.
     if acct is not None and acct.type == AccountType.investment:
         return False
-    suggested_id, _n, _s = suggest_fund(db, merchant, amount)
+    suggested_id, _n, _s = suggest_fund(db, merchant)
     db.add(
         PlaidInbox(
             plaid_transaction_id=pid,

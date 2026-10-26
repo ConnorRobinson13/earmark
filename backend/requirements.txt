@@ -8,7 +8,6 @@ pydantic==2.14.1
 pydantic-settings==2.16.1
 python-dateutil==2.9.0
 httpx==0.28.1
-anthropic==0.39.0
 plaid-python==24.0.0
 python-dotenv==1.2.4
 apscheduler==3.11.3

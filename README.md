@@ -101,7 +101,7 @@ You can also skip Plaid entirely and add transactions by hand.
 | Frontend | React + Vite (installable PWA) |
 | Database | Postgres 16 + [pgvector](https://github.com/pgvector/pgvector) |
 | Embeddings | [Ollama](https://ollama.com) (`mxbai-embed-large`) on the host |
-| Categorization | Anthropic API (optional) |
+| AI auto-sort | OpenRouter (optional) |
 | Bank sync | Plaid (optional; sandbox → production) |
 | AI assistant | MCP server wrapping the API ("talk to your money") |
 
@@ -125,7 +125,7 @@ container can reach your GPU/CPU without wrestling with passthrough.
 cp .env.example .env
 ```
 Fill in whatever you want (all optional):
-- `ANTHROPIC_API_KEY` — LLM-assisted categorization.
+- `OPENROUTER_API_KEY` — AI-assisted transaction auto-sorting (optional).
 - `PLAID_CLIENT_ID` / `PLAID_SECRET` / `PLAID_ENV` — bank sync. Start with
   `PLAID_ENV=sandbox`.
 - `MCP_AUTH_TOKEN` — bearer token for the MCP server (`openssl rand -hex 32`).

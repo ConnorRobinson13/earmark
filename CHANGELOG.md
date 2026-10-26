@@ -7,6 +7,13 @@ backfilled from the GitHub release notes.
 
 ## [Unreleased]
 
+### Changed
+
+- AI auto-sort runs only through OpenRouter, configured with `OPENROUTER_API_KEY`.
+  The Anthropic fallback for fund suggestions is removed, and so is the
+  `ANTHROPIC_API_KEY` setting. Fund suggestions now come from local embeddings
+  alone, so nothing about a transaction leaves the machine for suggestions.
+
 ## [1.3.0] - 2026-10-25
 
 ### Added
