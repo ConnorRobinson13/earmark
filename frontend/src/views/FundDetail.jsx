@@ -56,10 +56,11 @@ export default function FundDetail() {
   return (
     <div>
       <div className="fd-hero">
-        <div className="crumbs">
-          <Link to="/" style={{ color: 'var(--text-dim)' }}>Dashboard</Link>
-          <span> / </span>
-          <span>{fund.category || 'Uncategorized'}</span>
+        <div className="fd-back-row">
+          <Link to="/" className="btn sm fd-back">
+            <Icon name="chev_l" /> Back to dashboard
+          </Link>
+          <span className="crumbs">{fund.category || 'Uncategorized'}</span>
         </div>
         <h1>{fund.name}</h1>
 
