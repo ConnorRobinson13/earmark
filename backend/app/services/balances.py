@@ -27,6 +27,7 @@ from .. import schemas
 from ..models import (
     Account,
     AccountType,
+    Category,
     Fund,
     GoalSettlement,
     MonthlyMeta,
@@ -172,15 +173,16 @@ def spend_by_category_in_month(
 
     first, nxt = month_bounds(month or date.today())
     rows = db.execute(
-        select(Fund.category, func.coalesce(func.sum(Transaction.amount), 0))
+        select(Category.name, func.coalesce(func.sum(Transaction.amount), 0))
         .join(Fund, Fund.id == Transaction.fund_id)
+        .outerjoin(Category, Category.id == Fund.category_id)
         .where(
             Fund.kind == FundKind.operational,
             Transaction.date >= first,
             Transaction.date < nxt,
             Transaction.type.in_(["expense", "transfer", "income"]),
         )
-        .group_by(Fund.category)
+        .group_by(Category.name)
     ).all()
     return {(cat or "Uncategorized"): -Decimal(total or 0) for cat, total in rows}
 

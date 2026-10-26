@@ -66,6 +66,8 @@ export default function Settings() {
         })}
       </div>
 
+      <CategoriesSection />
+
       <div className="sec-head">
         <h2>Bank connections</h2>
         <span className="sub">Plaid</span>
@@ -367,5 +369,56 @@ function ResetSection() {
         {status && <span className="small muted">{status}</span>}
       </div>
     </div>
+  )
+}
+
+/**
+ * The category list. Categories are created where a fund picks one, so this
+ * section is where a mistaken one is removed. The server refuses to delete a
+ * category that funds still use, and that refusal is shown as it is.
+ */
+function CategoriesSection() {
+  const categoriesRes = useResource(keys.categories())
+  const invalidate = useInvalidate()
+  const [err, setErr] = useState('')
+  const categories = categoriesRes.data || []
+
+  async function remove(c) {
+    if (!confirm(`Delete category "${c.name}"?`)) return
+    setErr('')
+    try {
+      await api.categories.remove(c.id)
+      invalidate(writes.categories)
+    } catch (e) {
+      setErr(String(e))
+    }
+  }
+
+  return (
+    <>
+      <div className="sec-head">
+        <h2>Categories</h2>
+        <span className="sub">groups funds on the dashboard</span>
+      </div>
+
+      {err && <div className="bad small" style={{ marginBottom: 10 }}>{err}</div>}
+
+      {categories.length === 0 ? (
+        <div className="card muted">
+          No categories yet. Pick &quot;+ New category&quot; when you add or edit a fund.
+        </div>
+      ) : (
+        <div className="card">
+          {categories.map(c => (
+            <div key={c.id} className="row" style={{ padding: '8px 0', gap: 10 }}>
+              <span>{c.name}</span>
+              <div className="spacer" />
+              <button className="btn ghost sm" onClick={() => remove(c)}>Delete</button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={{ height: 24 }} />
+    </>
   )
 }

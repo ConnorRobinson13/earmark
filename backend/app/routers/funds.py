@@ -6,13 +6,19 @@ from sqlalchemy.orm import Session
 
 from .. import schemas
 from ..db import get_db
-from ..models import Fund, Transaction
+from ..models import Category, Fund, Transaction
 from ..month import parse_month
 from ..services import transactions as tx_svc
 from ..services.account_sync import sync_goals_for_account
 from ..services.balances import enrich_funds, fund_balance
 
 router = APIRouter(prefix="/funds", tags=["funds"])
+
+
+def _check_category(db: Session, category_id: int | None) -> None:
+    """Refuse an id that isn't in the category list, instead of failing on the FK."""
+    if category_id is not None and db.get(Category, category_id) is None:
+        raise HTTPException(422, f"unknown category id {category_id}")
 
 
 @router.get("", response_model=list[schemas.FundOut])
@@ -26,6 +32,7 @@ def list_funds(include_archived: bool = False, db: Session = Depends(get_db)):
 
 @router.post("", response_model=schemas.FundOut, status_code=201)
 def create_fund(body: schemas.FundCreate, db: Session = Depends(get_db)):
+    _check_category(db, body.category_id)
     f = Fund(**body.model_dump())
     db.add(f)
     db.commit()
@@ -47,6 +54,7 @@ def update_fund(fund_id: int, body: schemas.FundUpdate, db: Session = Depends(ge
     if not f:
         raise HTTPException(404)
     data = body.model_dump(exclude_unset=True)
+    _check_category(db, data.get("category_id"))
     if "archived" in data:
         f.archived_at = datetime.now(UTC) if data.pop("archived") else None
     backing_changed = "backed_by_account_id" in data

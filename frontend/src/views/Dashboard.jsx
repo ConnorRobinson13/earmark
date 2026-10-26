@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useOutletContext, useNavigate } from 'react-router-dom'
 import { api, fmt } from '../api'
 import { keys, useInvalidate, useResource, writes } from '../resource'
+import CategoryPicker from '../components/CategoryPicker'
 import ErrorCard from '../components/ErrorCard'
 import GoalSummary, { goalProgress } from '../components/GoalSummary'
 import InlineAssigned from '../components/InlineAssigned'
@@ -184,7 +185,6 @@ export default function Dashboard() {
         <NewFundModal
           onClose={() => setShowNew(false)}
           onCreated={() => setShowNew(false)}
-          existingCategories={[...new Set(ops.map(f => f.category).filter(Boolean))]}
         />
       )}
     </div>
@@ -427,11 +427,11 @@ function CopyPrevMonthButton({ currentMonth }) {
   return <button className="btn ghost sm" onClick={go}>↻ Copy from {monthLabel(prev)}</button>
 }
 
-function NewFundModal({ onClose, onCreated, existingCategories }) {
+function NewFundModal({ onClose, onCreated }) {
   const invalidate = useInvalidate()
   const [name, setName] = useState('')
   const [target, setTarget] = useState('')
-  const [category, setCategory] = useState('')
+  const [categoryId, setCategoryId] = useState(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
 
@@ -445,7 +445,7 @@ function NewFundModal({ onClose, onCreated, existingCategories }) {
         name: name.trim(),
         kind: 'operational',
         target: target ? Number(target) : null,
-        category: category.trim() || null,
+        category_id: categoryId,
       })
       invalidate(writes.ledger)
       onCreated()
@@ -464,15 +464,7 @@ function NewFundModal({ onClose, onCreated, existingCategories }) {
       </div>
       <div className="field">
         <label>Category</label>
-        <input
-          list="category-list"
-          placeholder="e.g. Housing"
-          value={category}
-          onChange={e => setCategory(e.target.value)}
-        />
-        <datalist id="category-list">
-          {existingCategories.map(c => <option key={c} value={c} />)}
-        </datalist>
+        <CategoryPicker value={categoryId} onChange={setCategoryId} />
       </div>
       {err && <div className="bad small">{err}</div>}
       <div className="actions">

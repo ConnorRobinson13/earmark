@@ -70,6 +70,12 @@ export const writes = {
    */
   plaid: ['/plaid', '/inbox', '/accounts', '/networth', '/retirement', '/dashboard'],
 
+  /**
+   * A category created or deleted. Funds carry the category's name and the
+   * dashboard groups by it, so both readers refetch.
+   */
+  categories: ['/categories', '/funds', '/dashboard'],
+
   /** The seed reset replaces the database, so nothing on screen survives it. */
   everything: [''],
 }
