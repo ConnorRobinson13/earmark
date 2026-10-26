@@ -1,0 +1,57 @@
+name: Release
+
+# Pushing a version tag (v1.3.0, for example) builds the three production
+# images and publishes them to GitHub Container Registry, tagged with the
+# version and its major.minor.
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+jobs:
+  images:
+    name: publish ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - image: earmark-backend
+            context: ./backend
+            file: ./backend/Dockerfile
+          - image: earmark-mcp
+            context: ./mcp
+            file: ./mcp/Dockerfile
+          - image: earmark-frontend
+            context: ./frontend
+            file: ./frontend/Dockerfile.prod
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # GHCR image names must be lowercase, so the owner is spelled out here.
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/connorrobinson13/${{ matrix.image }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
