@@ -1,5 +1,7 @@
 # Earmark — fund-based budgeting
 
+[![CI](https://github.com/ConnorRobinson13/earmark/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/ConnorRobinson13/earmark/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/ConnorRobinson13/earmark/actions/workflows/codeql.yml/badge.svg?branch=master)](https://github.com/ConnorRobinson13/earmark/actions/workflows/codeql.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-black.svg)](LICENSE)
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)

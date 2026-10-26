@@ -1,0 +1,48 @@
+name: Bug report
+description: Something is broken or behaves differently than the README describes.
+labels: [bug, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please don't paste real transactions, account numbers, or `.env` values. Redact them first.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you saw instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the Funds view
+        2. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Earmark version
+      description: The release tag, or the commit SHA if you run from master.
+    validations:
+      required: true
+  - type: dropdown
+    id: setup
+    attributes:
+      label: How do you run it?
+      options:
+        - Docker Compose (local)
+        - Docker Compose (self-hosted server)
+        - From source without Docker
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Backend logs from `docker compose logs backend` help the most.
+      render: shell

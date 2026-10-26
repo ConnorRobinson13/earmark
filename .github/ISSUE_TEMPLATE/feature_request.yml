@@ -1,0 +1,22 @@
+name: Feature request
+description: An idea for Earmark. CONTRIBUTING.md asks for an issue before a non-trivial PR.
+labels: [enhancement, needs-triage]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed approach
+      description: Optional. How you imagine it working.
+  - type: checkboxes
+    id: model
+    attributes:
+      label: Fund model
+      description: Earmark is built around persistent funds that roll over. Check this if the idea depends on changing that.
+      options:
+        - label: This change alters how funds, rollover, or balances behave

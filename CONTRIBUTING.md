@@ -60,6 +60,20 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
+## Lint and format
+
+CI runs ruff on `backend/` and `mcp/` and ESLint on `frontend/src/`. The same
+checks run before each commit if you install the hooks once:
+
+```bash
+pip install pre-commit
+pre-commit install
+```
+
+To run them by hand: `ruff check backend mcp`, `ruff format backend mcp`, and
+`npm --prefix frontend run lint`. The ruff version is pinned in `ci.yml`
+and `.pre-commit-config.yaml`, so the formatting matches what CI expects.
+
 ## Style
 
 - Match the surrounding code. The backend leans on type hints and small,
