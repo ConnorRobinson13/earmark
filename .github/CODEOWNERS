@@ -1,0 +1,6 @@
+# Everything needs the maintainer's review. The deploy scripts and the
+# compose/Docker setup also run on the home server, so they are called out.
+*                       @ConnorRobinson13
+/deploy/                @ConnorRobinson13
+/.github/               @ConnorRobinson13
+/docker-compose*.yml    @ConnorRobinson13
