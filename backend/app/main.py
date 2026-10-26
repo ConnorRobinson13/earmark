@@ -7,7 +7,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .month import InvalidMonth
-from .services import plaid_sync
 from .routers import (
     accounts,
     admin,
@@ -26,6 +25,7 @@ from .routers import (
     suggest,
     transactions,
 )
+from .services import plaid_sync
 
 log = logging.getLogger(__name__)
 

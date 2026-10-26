@@ -12,6 +12,7 @@ arithmetic lives, and the inverse is derived from it rather than retyped.
 Callers own the transaction: these functions flush so ids are visible, but
 never commit.
 """
+
 from __future__ import annotations
 
 from datetime import date
@@ -47,7 +48,11 @@ def settle_goal(
         raise ValueError("amount must be positive")
 
     from_acct = db.get(Account, from_account_id) if from_account_id else None
-    to_acct = db.get(Account, goal.backed_by_account_id) if goal.backed_by_account_id else None
+    to_acct = (
+        db.get(Account, goal.backed_by_account_id)
+        if goal.backed_by_account_id
+        else None
+    )
 
     settlement = GoalSettlement(
         goal_id=goal.id,

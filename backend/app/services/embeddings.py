@@ -8,11 +8,11 @@ and `backfill_missing_embeddings` fills it in afterwards, which is why the
 backfill lives beside the client rather than in the posting service: that module
 no longer knows embeddings exist.
 """
+
 from __future__ import annotations
 
 import logging
 import time
-from typing import Optional
 
 import httpx
 from sqlalchemy import func, select
@@ -54,7 +54,7 @@ def embed_text(text: str) -> list[float]:
     return data.get("embedding") or []
 
 
-def embed_text_or_none(text: str) -> Optional[list[float]]:
+def embed_text_or_none(text: str) -> list[float] | None:
     try:
         v = embed_text(text)
         return v or None

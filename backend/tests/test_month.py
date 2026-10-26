@@ -3,12 +3,12 @@
 Pure — no database, no app import beyond `app.month` itself. Expected values are
 written out as literals from a calendar, not recomputed the way the module does.
 """
+
 from __future__ import annotations
 
 from datetime import date
 
 import pytest
-
 from app.month import (
     InvalidMonth,
     clamp_day_to_month,
@@ -126,7 +126,9 @@ def test_an_empty_month_falls_back_to_the_current_one():
 
 
 def test_a_supplied_month_wins_over_today():
-    assert parse_month_or_current("2026-03", today=date(2026, 7, 15)) == date(2026, 3, 1)
+    assert parse_month_or_current("2026-03", today=date(2026, 7, 15)) == date(
+        2026, 3, 1
+    )
 
 
 def test_an_unparseable_month_is_still_rejected_when_a_fallback_exists():

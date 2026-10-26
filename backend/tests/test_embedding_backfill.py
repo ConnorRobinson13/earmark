@@ -5,6 +5,7 @@ before it searches, so a slow or unreachable Ollama costs a backfill pass rather
 than the latency of somebody's click. These tests drive that from both ends: the
 write path with the service hanging, and the read path with it back up.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -13,9 +14,8 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import text
-
 from app.constants import EMBEDDING_DIM
+from sqlalchemy import text
 
 
 def _vector_for(prompt: str) -> list[float]:
@@ -255,15 +255,18 @@ def test_transactions_without_a_merchant_are_never_embedded(client, ollama):
     """Transfers carry no merchant text, so there is nothing to embed."""
     a = client.post("/funds", json={"name": "Coffee"}).json()["id"]
     b = client.post("/funds", json={"name": "Fuel"}).json()["id"]
-    assert client.post(
-        "/transactions/transfer",
-        json={
-            "from_fund_id": a,
-            "to_fund_id": b,
-            "amount": "10.00",
-            "date": date.today().replace(day=15).isoformat(),
-        },
-    ).status_code == 201
+    assert (
+        client.post(
+            "/transactions/transfer",
+            json={
+                "from_fund_id": a,
+                "to_fund_id": b,
+                "amount": "10.00",
+                "date": date.today().replace(day=15).isoformat(),
+            },
+        ).status_code
+        == 201
+    )
 
     assert client.post("/suggest", json={"merchant": "Blue Bottle"}).status_code == 200
 

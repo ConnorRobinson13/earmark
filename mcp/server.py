@@ -14,6 +14,7 @@ Env:
   MCP_AUTH_TOKEN   bearer token clients must send (default "" = no auth, local only)
   MCP_HOST/MCP_PORT  bind address                 (default 0.0.0.0:9000)
 """
+
 from __future__ import annotations
 
 import json
@@ -66,7 +67,9 @@ class BudgetApiError(RuntimeError):
     """
 
     def __init__(self, response: httpx.Response) -> None:
-        super().__init__(f"budget API returned {response.status_code}: {_detail(response)}")
+        super().__init__(
+            f"budget API returned {response.status_code}: {_detail(response)}"
+        )
 
 
 def _request(
@@ -145,6 +148,7 @@ def _goals(funds: list[dict]) -> list[dict]:
 
 
 # ─────────────────────────── READ TOOLS ───────────────────────────
+
 
 @mcp.tool()
 def financial_overview(month: str = "") -> dict:
@@ -268,19 +272,23 @@ def project_retirement(
     inflation_pct: what the deflation to today's dollars assumes. 0 = no
     deflation, which makes every `real` equal to its `nominal`.
     """
-    return _get("/retirement/projection", {
-        "current_age": current_age,
-        "retire_age": retire_age,
-        "annual_return_pct": annual_return_pct,
-        "monthly_contribution": monthly_contribution,
-        "contribution_growth_pct": contribution_growth_pct,
-        "inflation_pct": inflation_pct,
-    })
+    return _get(
+        "/retirement/projection",
+        {
+            "current_age": current_age,
+            "retire_age": retire_age,
+            "annual_return_pct": annual_return_pct,
+            "monthly_contribution": monthly_contribution,
+            "contribution_growth_pct": contribution_growth_pct,
+            "inflation_pct": inflation_pct,
+        },
+    )
 
 
 # ─────────────────────────── WRITE TOOLS ───────────────────────────
 # These mutate the ledger. Confirm the amount + target with the user in plain
 # language BEFORE calling — there is no undo from the chat side.
+
 
 @mcp.tool()
 def assign_to_fund(fund_id: int, amount: float, month: str = "") -> dict:
@@ -299,12 +307,15 @@ def assign_to_fund(fund_id: int, amount: float, month: str = "") -> dict:
     current = today.replace(day=1)
     target = _month_first(month) if month else current
     dated = today if target == current else target
-    return _post("/transactions/assign", {
-        "fund_id": fund_id,
-        "amount": amount,
-        "date": dated.isoformat(),
-        "notes": "Assigned via MCP",
-    })
+    return _post(
+        "/transactions/assign",
+        {
+            "fund_id": fund_id,
+            "amount": amount,
+            "date": dated.isoformat(),
+            "notes": "Assigned via MCP",
+        },
+    )
 
 
 @mcp.tool()
@@ -323,13 +334,16 @@ def record_transaction(
     deliberately. A negative amount is rejected, not reinterpreted.
     txn_date: YYYY-MM-DD. Empty = today.
     """
-    return _post("/transactions/quick-add", {
-        "fund_id": fund_id,
-        "amount": amount,
-        "type": type,
-        "merchant": merchant,
-        "date": txn_date or date.today().isoformat(),
-    })
+    return _post(
+        "/transactions/quick-add",
+        {
+            "fund_id": fund_id,
+            "amount": amount,
+            "type": type,
+            "merchant": merchant,
+            "date": txn_date or date.today().isoformat(),
+        },
+    )
 
 
 @mcp.tool()
@@ -368,6 +382,7 @@ def set_planned_income(month: str, amount: float) -> dict:
 
 # ─────────────────────────── AUTH + RUN ───────────────────────────
 
+
 def _build_app():
     """Streamable HTTP ASGI app with optional token auth.
 
@@ -383,7 +398,9 @@ def _build_app():
 
         class TokenAuth(BaseHTTPMiddleware):
             async def dispatch(self, request, call_next):
-                header_ok = request.headers.get("authorization", "") == f"Bearer {AUTH_TOKEN}"
+                header_ok = (
+                    request.headers.get("authorization", "") == f"Bearer {AUTH_TOKEN}"
+                )
                 query_ok = request.query_params.get("token", "") == AUTH_TOKEN
                 if not (header_ok or query_ok):
                     return JSONResponse({"error": "unauthorized"}, status_code=401)
@@ -397,4 +414,5 @@ app = _build_app()
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host=mcp.settings.host, port=mcp.settings.port)

@@ -1,4 +1,5 @@
 """Per-month planning numbers (planned_income today, maybe more later)."""
+
 from datetime import date
 from decimal import Decimal
 
@@ -53,4 +54,6 @@ def upsert_meta(month: str, body: MonthlyMetaPatch, db: Session = Depends(get_db
 @router.get("", response_model=list[MonthlyMetaOut])
 def list_meta(db: Session = Depends(get_db)):
     rows = db.scalars(select(MonthlyMeta).order_by(MonthlyMeta.month)).all()
-    return [MonthlyMetaOut(month=r.month, planned_income=r.planned_income) for r in rows]
+    return [
+        MonthlyMetaOut(month=r.month, planned_income=r.planned_income) for r in rows
+    ]

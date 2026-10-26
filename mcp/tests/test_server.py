@@ -6,13 +6,13 @@ whether a filter was supplied — and getting a different answer. So the
 assertions are about the request that reaches the backend, and about the
 docstrings, which are the whole interface as far as the model is concerned.
 """
+
 from __future__ import annotations
 
 from datetime import date
 from pathlib import Path
 
 import pytest
-
 import server
 
 BACKEND_MONTH = Path(__file__).resolve().parents[2] / "backend" / "app" / "month.py"
@@ -38,6 +38,7 @@ def doc(tool) -> str:
 
 
 # ─────────────────────── assign: month → transaction date ───────────────────────
+
 
 @pytest.mark.parametrize("month", PAST_MONTH_FORMS)
 def test_assigning_to_another_month_dates_the_assignment_to_that_month(api, month):
@@ -100,7 +101,9 @@ def test_one_assignment_reads_the_clock_once(api, monkeypatch):
         "2026-07-01T00:00:00",
     ],
 )
-def test_a_month_the_backend_could_not_read_is_refused_before_anything_is_posted(api, month):
+def test_a_month_the_backend_could_not_read_is_refused_before_anything_is_posted(
+    api, month
+):
     """An unreadable month is a bad request, not a bad transaction date.
 
     `/transactions/assign` takes a date, so it cannot police a month for us —
@@ -113,6 +116,7 @@ def test_a_month_the_backend_could_not_read_is_refused_before_anything_is_posted
 
 
 # ─────────────────────────── amounts keep their sign ───────────────────────────
+
 
 def test_pulling_money_back_out_of_a_fund_stays_negative(api):
     server.assign_to_fund(fund_id=4, amount=-40.0, month="2020-03")
@@ -145,6 +149,7 @@ def test_a_negative_planned_income_is_forwarded_not_flipped(api):
 
 # ───────────────────── the backend's own errors reach the caller ─────────────────
 
+
 def test_a_rejected_amount_reports_what_the_backend_said(api):
     """A tool error is the only channel back, so the body travels with the status."""
     api.replies(400, {"detail": "amount must be positive"})
@@ -156,7 +161,14 @@ def test_a_rejected_amount_reports_what_the_backend_said(api):
 
 
 def test_a_validation_failure_reports_the_field_that_failed(api):
-    api.replies(422, {"detail": [{"loc": ["body", "amount"], "msg": "Input should be greater than 0"}]})
+    api.replies(
+        422,
+        {
+            "detail": [
+                {"loc": ["body", "amount"], "msg": "Input should be greater than 0"}
+            ]
+        },
+    )
 
     with pytest.raises(server.BudgetApiError, match="Input should be greater than 0"):
         server.record_transaction(fund_id=4, amount=-12.5)
@@ -170,6 +182,7 @@ def test_an_error_with_no_json_body_still_reports_its_status(api):
 
 
 # ──────────────────────────── search: filter presence ────────────────────────────
+
 
 def test_an_explicit_zero_bound_reaches_the_backend(api):
     """`max_amount=0` narrows the search to nothing-but-zero-amount rows.
@@ -261,7 +274,15 @@ def test_the_projection_comes_back_untouched(api):
         "starting_balance": "42000.00",
         "final_nominal": "46943.00",
         "final_real": "45798.05",
-        "series": [{"year": 0, "age": 28, "nominal": "42000.00", "real": "42000.00", "contributed": "0.00"}],
+        "series": [
+            {
+                "year": 0,
+                "age": 28,
+                "nominal": "42000.00",
+                "real": "42000.00",
+                "contributed": "0.00",
+            }
+        ],
     }
     api.replies(200, body)
 
@@ -356,6 +377,7 @@ def test_the_fund_kinds_are_the_backend_s_word_for_word():
 
 
 # ────────────────────────────── docstrings don't lie ──────────────────────────────
+
 
 def test_the_search_docstring_does_not_promise_signed_amount_filtering():
     """The endpoint filters on `abs(amount)`; the docstring used to say the

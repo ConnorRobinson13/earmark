@@ -243,7 +243,7 @@ function ContributeForm({ goal, month, accounts, unassigned, onDone }) {
             title="Date of the contribution (counts toward that year's contribution_ytd)"
           />
           <div className="small muted">
-            Records a settlement dated {contribDate} for {fmt(Number(amount) || 0)} → counts toward this year's contribution total.
+            Records a settlement dated {contribDate} for {fmt(Number(amount) || 0)} → counts toward this year&apos;s contribution total.
           </div>
         </>
       ) : (
@@ -347,7 +347,7 @@ function NewGoalModal({ accounts, onClose, onCreated }) {
           <label>Monthly payment (optional)</label>
           <input inputMode="decimal" placeholder="e.g. 531" value={minPayment}
             onChange={e => setMinPayment(e.target.value.replace(/-/g, ''))} />
-          <div className="small muted">The lender's fixed payment (incl. interest). If blank, we estimate it from the payoff date.</div>
+          <div className="small muted">The lender&apos;s fixed payment (incl. interest). If blank, we estimate it from the payoff date.</div>
         </div>
       )}
       {!isContribution && !isDebt && (

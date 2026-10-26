@@ -10,9 +10,10 @@ Serving still needs no extra wiring: `get_engine()` falls back to
 as it did. The fallback reads the environment when the first request arrives,
 never at import.
 """
+
 from __future__ import annotations
 
-from typing import Iterator
+from collections.abc import Iterator
 
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine

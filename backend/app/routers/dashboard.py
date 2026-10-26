@@ -32,7 +32,9 @@ router = APIRouter(tags=["dashboard"])
 
 @router.get("/dashboard/trends")
 def dashboard_trends(
-    months: int = Query(6, ge=1, le=24, description="how many recent months to include"),
+    months: int = Query(
+        6, ge=1, le=24, description="how many recent months to include"
+    ),
     db: Session = Depends(get_db),
 ):
     """Net spend by category for each of the last `months` months (oldest→newest)."""
@@ -48,17 +50,21 @@ def dashboard_trends(
     for ms in month_starts:
         by_cat = spend_by_category_in_month(db, ms)
         categories.update(by_cat.keys())
-        rows.append({
-            "month": ms.isoformat(),
-            "categories": {k: str(v) for k, v in by_cat.items()},
-            "total": str(sum(by_cat.values(), Decimal("0"))),
-        })
+        rows.append(
+            {
+                "month": ms.isoformat(),
+                "categories": {k: str(v) for k, v in by_cat.items()},
+                "total": str(sum(by_cat.values(), Decimal("0"))),
+            }
+        )
     return {"months": rows, "categories": sorted(categories)}
 
 
 @router.get("/dashboard", response_model=schemas.DashboardOut)
 def dashboard(
-    month: str | None = Query(None, description="YYYY-MM or YYYY-MM-DD; defaults to current month"),
+    month: str | None = Query(
+        None, description="YYYY-MM or YYYY-MM-DD; defaults to current month"
+    ),
     db: Session = Depends(get_db),
 ):
     month_first = parse_month_or_current(month)
@@ -72,7 +78,9 @@ def dashboard(
             Account.type == AccountType.credit
         )
     )
-    enriched = enrich_funds(db, active_funds_in_month(db, month_first), month=month_first)
+    enriched = enrich_funds(
+        db, active_funds_in_month(db, month_first), month=month_first
+    )
     spent = gross_spent_in_month(db, month_first)
     liquid_d = Decimal(liquid or 0)
     credit_d = Decimal(credit_owed or 0)

@@ -4,6 +4,7 @@ When an account's `current_balance` is updated (manually now, via Plaid later),
 every goal-fund backed by that account gets an adjusting income transaction so
 its computed balance matches the account.
 """
+
 from __future__ import annotations
 
 from datetime import date

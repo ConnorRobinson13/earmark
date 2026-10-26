@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -7,7 +7,14 @@ from sqlalchemy.orm import Session
 
 from .. import schemas
 from ..db import get_db
-from ..models import Fund, FundKind, GoalSettlement, InboxStatus, PlaidInbox, Transaction
+from ..models import (
+    Fund,
+    FundKind,
+    GoalSettlement,
+    InboxStatus,
+    PlaidInbox,
+    Transaction,
+)
 from ..services import transactions as tx_svc
 from ..services.suggest import suggest_fund
 
@@ -81,13 +88,15 @@ def approve(inbox_id: int, body: schemas.InboxApprove, db: Session = Depends(get
         if is_income and fund_id is not None:
             fund = db.get(Fund, fund_id)
             if fund and fund.kind == FundKind.goal:
-                db.add(GoalSettlement(
-                    goal_id=fund.id,
-                    from_account_id=None,  # unknown — Plaid only shows the destination side
-                    to_account_id=fund.backed_by_account_id,
-                    amount=-item.amount,
-                    settled_at=item.date,
-                ))
+                db.add(
+                    GoalSettlement(
+                        goal_id=fund.id,
+                        from_account_id=None,  # unknown — Plaid only shows the destination side
+                        to_account_id=fund.backed_by_account_id,
+                        amount=-item.amount,
+                        settled_at=item.date,
+                    )
+                )
 
         _mark_reviewed(item)
         db.commit()
@@ -130,7 +139,7 @@ def _adopt(
 
 def _mark_reviewed(item: PlaidInbox) -> None:
     item.status = InboxStatus.approved
-    item.reviewed_at = datetime.now(timezone.utc)
+    item.reviewed_at = datetime.now(UTC)
 
 
 @router.post("/{inbox_id}/reject", status_code=204)
@@ -139,7 +148,7 @@ def reject(inbox_id: int, db: Session = Depends(get_db)):
     if not item:
         raise HTTPException(404)
     item.status = InboxStatus.rejected
-    item.reviewed_at = datetime.now(timezone.utc)
+    item.reviewed_at = datetime.now(UTC)
     db.commit()
 
 

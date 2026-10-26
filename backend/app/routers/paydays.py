@@ -1,4 +1,5 @@
 """Payday schedule CRUD — recurring deposits that drive the cash-flow projection."""
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session

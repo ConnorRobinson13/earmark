@@ -9,6 +9,7 @@ written as literals in the test.
 Sync pages are keyed by the cursor that asks for them, so a multi-page sync is
 described by chaining them: `{"": page_one, "cursor-1": page_two}`.
 """
+
 from __future__ import annotations
 
 from datetime import date

@@ -97,3 +97,38 @@ jobs:
 
       - name: Build frontend image
         run: docker build ./frontend --file frontend/Dockerfile.prod --tag earmark-frontend:ci
+
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Pinned to the version the repo was formatted with, so a newer ruff
+      # cannot quietly reflow the whole codebase.
+      - name: Install ruff
+        run: pip install ruff==0.15.1
+
+      - name: Ruff check
+        run: ruff check backend mcp
+
+      - name: Ruff format
+        run: ruff format --check backend mcp
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: ESLint
+        working-directory: frontend
+        run: npm run lint

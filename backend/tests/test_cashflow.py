@@ -9,6 +9,7 @@ arithmetic, and arithmetic does not need Postgres.
 calendar literals that cannot go stale. July 2026 (31 days) is the working month
 throughout; February 2026 (28 days) appears where day-of-month clamping matters.
 """
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -31,6 +32,7 @@ AUGUST = date(2026, 8, 1)
 
 
 # ---------- builders ----------
+
 
 def payday(day: int, amount: str | None = None) -> Payday:
     """A payday. No amount means "take an even share of planned income"."""
@@ -72,11 +74,14 @@ def day_on(plan: CashflowPlan, d: date) -> CashflowDay:
 
 # ---------- the payday split ----------
 
+
 def test_a_lone_open_ended_payday_takes_the_whole_planned_income():
     plan = project(
         inputs(paydays=[payday(10)], months=[month_of(JULY, planned_income="3000")])
     )
-    assert [e.amount for e in day_on(plan, date(2026, 7, 10)).events] == [Decimal("3000")]
+    assert [e.amount for e in day_on(plan, date(2026, 7, 10)).events] == [
+        Decimal("3000")
+    ]
 
 
 def test_two_open_ended_paydays_split_the_planned_income_evenly():
@@ -156,12 +161,15 @@ def test_a_payday_on_the_31st_lands_on_the_last_day_of_a_short_month():
 
 # ---------- bills ----------
 
+
 def test_a_funds_whole_assignment_leaves_the_account_on_its_due_day():
-    plan = project(
-        inputs(months=[month_of(JULY, funds=[bill("Rent", 20, "1800")])])
-    )
+    plan = project(inputs(months=[month_of(JULY, funds=[bill("Rent", 20, "1800")])]))
     event = day_on(plan, date(2026, 7, 20)).events[0]
-    assert (event.kind, event.label, event.amount) == ("outflow", "Rent", Decimal("-1800"))
+    assert (event.kind, event.label, event.amount) == (
+        "outflow",
+        "Rent",
+        Decimal("-1800"),
+    )
 
 
 def test_a_fund_with_nothing_assigned_never_shows_up():
@@ -189,10 +197,14 @@ def test_paychecks_come_before_bills_on_a_day_they_share():
             ],
         )
     )
-    assert [e.kind for e in day_on(plan, date(2026, 7, 20)).events] == ["income", "outflow"]
+    assert [e.kind for e in day_on(plan, date(2026, 7, 20)).events] == [
+        "income",
+        "outflow",
+    ]
 
 
 # ---------- the anchor back-solve ----------
+
 
 def test_todays_balance_is_exactly_the_cash_in_the_account_now():
     plan = project(
@@ -266,9 +278,12 @@ def test_a_later_month_is_anchored_through_the_months_in_between():
 
 # ---------- the goes-negative flag ----------
 
+
 def test_a_bill_that_outruns_the_balance_trips_the_negative_flag():
     plan = project(
-        inputs(liquid_cash="100", months=[month_of(JULY, funds=[bill("Rent", 20, "500")])])
+        inputs(
+            liquid_cash="100", months=[month_of(JULY, funds=[bill("Rent", 20, "500")])]
+        )
     )
     assert plan.goes_negative is True
     assert plan.min_balance == Decimal("-400")
@@ -276,7 +291,9 @@ def test_a_bill_that_outruns_the_balance_trips_the_negative_flag():
 
 def test_a_month_that_only_reaches_zero_does_not_count_as_negative():
     plan = project(
-        inputs(liquid_cash="500", months=[month_of(JULY, funds=[bill("Rent", 20, "500")])])
+        inputs(
+            liquid_cash="500", months=[month_of(JULY, funds=[bill("Rent", 20, "500")])]
+        )
     )
     assert plan.goes_negative is False
     assert plan.min_balance == Decimal("0")
@@ -288,6 +305,7 @@ def test_a_month_that_never_dips_is_not_negative():
 
 
 # ---------- the minimum-balance day ----------
+
 
 def test_the_minimum_is_the_lowest_closing_balance_of_the_month():
     plan = project(
@@ -327,6 +345,7 @@ def test_the_minimum_of_a_flat_month_is_its_first_day():
 
 
 # ---------- the past-month short circuit ----------
+
 
 def test_a_month_already_over_reports_only_todays_cash():
     plan = project(
@@ -369,6 +388,7 @@ def test_the_month_that_ended_yesterday_is_past():
 
 # ---------- the day walk ----------
 
+
 def test_there_is_one_entry_for_every_day_of_the_month():
     plan = project(inputs(months=[month_of(JULY)]))
     assert [day.date for day in plan.days] == [date(2026, 7, d) for d in range(1, 32)]
@@ -397,20 +417,25 @@ def test_no_day_is_flagged_as_today_in_a_month_that_is_not_this_one():
 
 def test_the_ending_balance_is_the_last_days_balance():
     plan = project(
-        inputs(liquid_cash="1000", months=[month_of(JULY, funds=[bill("Rent", 20, "300")])])
+        inputs(
+            liquid_cash="1000", months=[month_of(JULY, funds=[bill("Rent", 20, "300")])]
+        )
     )
     assert plan.ending_balance == plan.days[-1].balance == Decimal("700")
 
 
 def test_a_days_balance_closes_after_its_own_events():
     plan = project(
-        inputs(liquid_cash="1000", months=[month_of(JULY, funds=[bill("Rent", 20, "300")])])
+        inputs(
+            liquid_cash="1000", months=[month_of(JULY, funds=[bill("Rent", 20, "300")])]
+        )
     )
     assert day_on(plan, date(2026, 7, 19)).balance == Decimal("1000")
     assert day_on(plan, date(2026, 7, 20)).balance == Decimal("700")
 
 
 # ---------- the wire shape ----------
+
 
 def test_the_plan_serialises_to_the_shape_the_ui_already_reads():
     # The projection's result is the cash-flow endpoint's response body, so the
@@ -457,7 +482,10 @@ def test_a_two_place_amount_keeps_its_trailing_zeros_on_the_wire():
     # Amounts come out of Numeric(12, 2) columns, and the UI renders the string
     # as-is — so "1800.00" must not arrive as 1800.0.
     plan = project(
-        inputs(liquid_cash="0.00", months=[month_of(JULY, funds=[bill("Rent", 20, "1800.00")])])
+        inputs(
+            liquid_cash="0.00",
+            months=[month_of(JULY, funds=[bill("Rent", 20, "1800.00")])],
+        )
     )
     body = plan.model_dump(mode="json")
     assert body["days"][19]["events"][0]["amount"] == "-1800.00"

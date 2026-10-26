@@ -9,6 +9,7 @@ That shape is a contract with the UI, which reads amounts as strings and renders
 them as-is, so a balance arriving as the JSON number 1800.0 instead of the string
 "1800.00" would be a visible bug rather than a formatting nicety.
 """
+
 from __future__ import annotations
 
 import json

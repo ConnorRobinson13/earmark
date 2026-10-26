@@ -15,6 +15,7 @@ Pure by design: no database, no settings, no FastAPI. It is importable and
 testable on its own, which is why the routers can share it without any of them
 growing a dependency on the others.
 """
+
 from __future__ import annotations
 
 import re

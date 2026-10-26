@@ -5,20 +5,25 @@ the HTTP layer. Now both call `services.plaid_sync.run_sync`, and the parity
 test below is what holds them together: the same stub, replayed through each
 entry point, has to leave the database in exactly the same state.
 """
+
 from __future__ import annotations
 
 from datetime import date
 
 import pytest
-from sqlalchemy import select
-
 from app import db as db_module
 from app import main
 from app.config import settings
 from app.models import Account, PlaidInbox, PlaidItem
 from app.routers import plaid as plaid_router
 from app.services import plaid_sync
-from app.services.plaid_client import LinkedItem, PlaidApiError, PlaidNotConfigured, SyncPage
+from app.services.plaid_client import (
+    LinkedItem,
+    PlaidApiError,
+    PlaidNotConfigured,
+    SyncPage,
+)
+from sqlalchemy import select
 from stub_plaid import StubPlaidClient, plaid_account, plaid_transaction
 
 CHECKING = "plaid-acct-checking"
@@ -97,7 +102,9 @@ def snapshot() -> dict[str, object]:
             ],
             "accounts": [
                 (a.plaid_account_id, a.name, a.type, str(a.current_balance))
-                for a in db.scalars(select(Account).order_by(Account.plaid_account_id)).all()
+                for a in db.scalars(
+                    select(Account).order_by(Account.plaid_account_id)
+                ).all()
             ],
             "cursors": [
                 (i.item_id, i.cursor)
@@ -328,9 +335,7 @@ def test_items_surfaces_permanent_invalid_access_token_status(client, plaid):
 
 def test_missing_credentials_are_reported_as_a_400(client, monkeypatch):
     """The dependency, not a handler, is what discovers there is no client."""
-    monkeypatch.setattr(
-        plaid_router, "build_plaid_client", _raise_not_configured
-    )
+    monkeypatch.setattr(plaid_router, "build_plaid_client", _raise_not_configured)
 
     response = client.post("/plaid/link-token")
     assert response.status_code == 400

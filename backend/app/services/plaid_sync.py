@@ -9,11 +9,12 @@ Nothing here imports FastAPI or the Plaid SDK. The `PlaidClient` port arrives as
 an argument, which is what lets the whole thing — floor dates, deduplication,
 removed reconciliation, cursor advancement — be exercised from a stub.
 """
+
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -305,7 +306,9 @@ def _reconcile_removed(db: Session, removed: dict[str, Any]) -> None:
     rid = removed.get("transaction_id")
     if not rid:
         return
-    inbox_row = db.scalar(select(PlaidInbox).where(PlaidInbox.plaid_transaction_id == rid))
+    inbox_row = db.scalar(
+        select(PlaidInbox).where(PlaidInbox.plaid_transaction_id == rid)
+    )
     if inbox_row is not None:
         db.delete(inbox_row)
 
@@ -315,7 +318,7 @@ def _upsert_accounts(
 ) -> int:
     """Write Plaid's view of this Item's accounts into our Account table.
     Returns the number of newly-created rows."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     created = 0
     for p in accounts:
         pid = p["account_id"]
@@ -381,4 +384,6 @@ def _jsonable(obj):
 def _account_for_plaid_id(db: Session, plaid_account_id: str | None) -> Account | None:
     if not plaid_account_id:
         return None
-    return db.scalar(select(Account).where(Account.plaid_account_id == plaid_account_id))
+    return db.scalar(
+        select(Account).where(Account.plaid_account_id == plaid_account_id)
+    )

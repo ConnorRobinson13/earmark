@@ -10,20 +10,20 @@ of the port the sync now takes as an argument.
 Dates are literals rather than offsets from today, so no expectation here can go
 stale, and the floor is set per-test instead of inherited from settings.
 """
+
 from __future__ import annotations
 
 from datetime import date
 
 import pytest
-from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
-
 from app import db as db_module
 from app.config import settings
 from app.models import Account, AccountType, PlaidInbox, PlaidItem
 from app.services import plaid_sync
 from app.services import transactions as tx_svc
 from app.services.plaid_client import PlaidApiError, SyncPage
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from stub_plaid import StubPlaidClient, plaid_account, plaid_transaction
 
 FLOOR = date(2026, 6, 1)
@@ -93,6 +93,7 @@ def inbox_ids(db) -> list[str]:
 
 # ---------- floor date ----------
 
+
 def test_transactions_dated_before_the_floor_are_dropped(db):
     client = stub_with(
         one_page(
@@ -120,7 +121,9 @@ def test_an_unparseable_floor_date_lets_everything_through(db, monkeypatch):
     """A typo in the setting must not silently swallow the whole backfill."""
     monkeypatch.setattr(settings, "plaid_sync_floor_date", "not-a-date")
     client = stub_with(
-        one_page(plaid_transaction("ancient", txn_date=date(2019, 1, 1), account_id=CHECKING))
+        one_page(
+            plaid_transaction("ancient", txn_date=date(2019, 1, 1), account_id=CHECKING)
+        )
     )
     seeded_item(db)
 
@@ -128,6 +131,7 @@ def test_an_unparseable_floor_date_lets_everything_through(db, monkeypatch):
 
 
 # ---------- deduplication ----------
+
 
 def test_an_already_seen_transaction_is_not_added_twice(db):
     """Plaid replays a transaction whenever the cursor is reset or a sync is
@@ -160,7 +164,9 @@ def test_a_transaction_already_in_the_ledger_is_not_restaged(db):
     assert plaid_sync.run_sync(db, client).added == 1
 
     # Approve it — then lose the inbox row the way a `removed` page does.
-    inbox_row = db.scalar(select(PlaidInbox).where(PlaidInbox.plaid_transaction_id == "txn-1"))
+    inbox_row = db.scalar(
+        select(PlaidInbox).where(PlaidInbox.plaid_transaction_id == "txn-1")
+    )
     tx_svc.post_expense(
         db,
         fund_id=None,
@@ -220,6 +226,7 @@ def test_investment_transactions_are_suppressed(db):
 
 # ---------- removed reconciliation ----------
 
+
 def test_a_removed_transaction_deletes_its_inbox_row(db):
     """Plaid emits `removed` for reversals and for the pending id that a posted
     transaction replaces. Either way the inbox row is a zombie."""
@@ -252,7 +259,11 @@ def test_a_removal_without_an_id_does_not_abandon_the_rest_of_the_page(db):
     client = stub_with(
         {
             "": SyncPage(
-                added=[plaid_transaction("txn-1", txn_date=AFTER_FLOOR, account_id=CHECKING)],
+                added=[
+                    plaid_transaction(
+                        "txn-1", txn_date=AFTER_FLOOR, account_id=CHECKING
+                    )
+                ],
                 removed=[{}],
                 next_cursor="cursor-1",
             )
@@ -276,16 +287,21 @@ def test_removing_an_unknown_transaction_is_harmless(db):
 
 # ---------- cursor advancement ----------
 
+
 def test_paging_follows_has_more_and_stores_the_final_cursor(db):
     client = stub_with(
         {
             "": SyncPage(
-                added=[plaid_transaction("p1", txn_date=AFTER_FLOOR, account_id=CHECKING)],
+                added=[
+                    plaid_transaction("p1", txn_date=AFTER_FLOOR, account_id=CHECKING)
+                ],
                 next_cursor="cursor-1",
                 has_more=True,
             ),
             "cursor-1": SyncPage(
-                added=[plaid_transaction("p2", txn_date=AFTER_FLOOR, account_id=CHECKING)],
+                added=[
+                    plaid_transaction("p2", txn_date=AFTER_FLOOR, account_id=CHECKING)
+                ],
                 next_cursor="cursor-2",
                 has_more=False,
             ),
@@ -303,7 +319,11 @@ def test_a_stored_cursor_is_where_the_next_sync_resumes(db):
     client = stub_with(
         {
             "cursor-1": SyncPage(
-                added=[plaid_transaction("later", txn_date=AFTER_FLOOR, account_id=CHECKING)],
+                added=[
+                    plaid_transaction(
+                        "later", txn_date=AFTER_FLOOR, account_id=CHECKING
+                    )
+                ],
                 next_cursor="cursor-2",
             )
         }
@@ -328,7 +348,9 @@ def test_plaid_transport_issue_does_not_prevent_later_items_from_syncing(db):
     seeded_item(db, access_token="access-healthy", item_id="item-healthy")
     client = stub_with(
         one_page(
-            plaid_transaction("saved-by-healthy-item", txn_date=AFTER_FLOOR, account_id=CHECKING)
+            plaid_transaction(
+                "saved-by-healthy-item", txn_date=AFTER_FLOOR, account_id=CHECKING
+            )
         )
     )
     original_accounts = client.accounts
@@ -351,12 +373,16 @@ def test_plaid_transport_issue_does_not_prevent_later_items_from_syncing(db):
     assert inbox_ids(db) == ["saved-by-healthy-item"]
 
 
-def test_database_failure_on_one_item_does_not_prevent_later_items_from_syncing(db, monkeypatch):
+def test_database_failure_on_one_item_does_not_prevent_later_items_from_syncing(
+    db, monkeypatch
+):
     seeded_item(db, access_token="access-db-failure", item_id="item-db-failure")
     seeded_item(db, access_token="access-healthy", item_id="item-healthy")
     client = stub_with(
         one_page(
-            plaid_transaction("saved-after-db-failure", txn_date=AFTER_FLOOR, account_id=CHECKING)
+            plaid_transaction(
+                "saved-after-db-failure", txn_date=AFTER_FLOOR, account_id=CHECKING
+            )
         )
     )
     original_sync_item = plaid_sync._sync_item
@@ -390,7 +416,9 @@ def test_unexpected_failure_on_later_item_keeps_prior_item_committed(db):
 
     client = stub_with(
         one_page(
-            plaid_transaction("saved-before-failure", txn_date=AFTER_FLOOR, account_id=CHECKING)
+            plaid_transaction(
+                "saved-before-failure", txn_date=AFTER_FLOOR, account_id=CHECKING
+            )
         )
     )
     original_accounts = client.accounts
@@ -422,12 +450,15 @@ def test_unexpected_failure_on_later_item_keeps_prior_item_committed(db):
 
 # ---------- balances ----------
 
+
 def test_syncing_refreshes_account_balances_before_ingesting(db):
     """Accounts are upserted first so an inbox row can be attributed to a row
     that exists — including on the very first sync of a new Item."""
     client = stub_with(
         one_page(plaid_transaction("txn-1", txn_date=AFTER_FLOOR, account_id=CHECKING)),
-        accounts=[plaid_account(CHECKING, name="Everyday", available=812.45, current=900.0)],
+        accounts=[
+            plaid_account(CHECKING, name="Everyday", available=812.45, current=900.0)
+        ],
     )
     seeded_item(db)
 
@@ -441,7 +472,9 @@ def test_syncing_refreshes_account_balances_before_ingesting(db):
     assert str(acct.current_balance) == "812.45"
     assert acct.last_synced_at is not None
 
-    row = db.scalar(select(PlaidInbox).where(PlaidInbox.plaid_transaction_id == "txn-1"))
+    row = db.scalar(
+        select(PlaidInbox).where(PlaidInbox.plaid_transaction_id == "txn-1")
+    )
     assert row.account_id == acct.id
     # The raw payload is stored JSON-safe — a `date` would break psycopg's encoder.
     assert row.raw["date"] == AFTER_FLOOR.isoformat()
@@ -466,12 +499,15 @@ def test_a_credit_card_stores_the_amount_owed(db):
     plaid_sync.run_sync(db, client)
 
     db.expire_all()
-    acct = db.scalar(select(Account).where(Account.plaid_account_id == "plaid-acct-card"))
+    acct = db.scalar(
+        select(Account).where(Account.plaid_account_id == "plaid-acct-card")
+    )
     assert acct.type == AccountType.credit
     assert str(acct.current_balance) == "243.10"
 
 
 # ---------- linking ----------
+
 
 def test_linking_stores_the_item_and_its_accounts(db):
     client = StubPlaidClient(accounts=[plaid_account(CHECKING, name="Everyday")])

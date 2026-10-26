@@ -4,6 +4,7 @@ Deliberately its own router rather than a third net-worth endpoint: net worth is
 a statement of where the money is, and this is a guess about where it goes. The
 only thing they share is the figure the guess starts from.
 """
+
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query

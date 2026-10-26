@@ -1,4 +1,5 @@
 """Cash-flow timeline: project liquid cash day-by-day through a month."""
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
@@ -12,7 +13,9 @@ router = APIRouter(prefix="/cashflow", tags=["cashflow"])
 
 @router.get("", response_model=CashflowPlan)
 def cashflow(
-    month: str | None = Query(None, description="YYYY-MM or YYYY-MM-DD; defaults to current month"),
+    month: str | None = Query(
+        None, description="YYYY-MM or YYYY-MM-DD; defaults to current month"
+    ),
     db: Session = Depends(get_db),
 ):
     # Gather, then project: the session stops here, and the arithmetic behind

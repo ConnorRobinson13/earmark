@@ -12,6 +12,7 @@ the balance reflects a historical snapshot.
 Month arithmetic — bounds, last day, day clamping — lives in `app.month`; this
 module only uses it.
 """
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -23,12 +24,6 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .. import schemas
-from ..month import (
-    current_month,
-    first_of_month,
-    month_bounds,
-    next_month,
-)
 from ..models import (
     Account,
     AccountType,
@@ -37,6 +32,12 @@ from ..models import (
     MonthlyMeta,
     PaydaySchedule,
     Transaction,
+)
+from ..month import (
+    current_month,
+    first_of_month,
+    month_bounds,
+    next_month,
 )
 from .cashflow import CashflowInputs, FundCharge, MonthInputs, Payday, month_is_over
 
@@ -61,7 +62,9 @@ def fund_balance(db: Session, fund_id: int, as_of: date | None = None) -> Decima
     return Decimal(db.scalar(q) or 0)
 
 
-def fund_assigned_in_month(db: Session, fund_id: int, month: date | None = None) -> Decimal:
+def fund_assigned_in_month(
+    db: Session, fund_id: int, month: date | None = None
+) -> Decimal:
     """Sum of assignment entries on this fund within `month`."""
     first, nxt = month_bounds(month or date.today())
     total = db.scalar(
@@ -141,6 +144,7 @@ def gross_spent_in_month(db: Session, month: date | None = None) -> Decimal:
     don't distort the headline.
     """
     from ..models import FundKind  # local import — avoids reshuffling top-level
+
     first, nxt = month_bounds(month or date.today())
     total = db.scalar(
         select(func.coalesce(func.sum(Transaction.amount), 0))
@@ -155,7 +159,9 @@ def gross_spent_in_month(db: Session, month: date | None = None) -> Decimal:
     return -Decimal(total or 0)
 
 
-def spend_by_category_in_month(db: Session, month: date | None = None) -> dict[str, Decimal]:
+def spend_by_category_in_month(
+    db: Session, month: date | None = None
+) -> dict[str, Decimal]:
     """Net spend per operational-fund category for `month`, positive when spent.
 
     Same inclusion rule as `gross_spent_in_month` (expense + transfer + income so
@@ -163,6 +169,7 @@ def spend_by_category_in_month(db: Session, month: date | None = None) -> dict[s
     Funds with no category roll up under "Uncategorized".
     """
     from ..models import FundKind  # local import — avoids reshuffling top-level
+
     first, nxt = month_bounds(month or date.today())
     rows = db.execute(
         select(Fund.category, func.coalesce(func.sum(Transaction.amount), 0))
@@ -195,7 +202,9 @@ def goals_saved_in_month(db: Session, month: date | None = None) -> Decimal:
     return Decimal(total or 0)
 
 
-def goal_pending_settlement(db: Session, goal_id: int, month: date | None = None) -> Decimal:
+def goal_pending_settlement(
+    db: Session, goal_id: int, month: date | None = None
+) -> Decimal:
     """For a goal, how much was assigned this month but not yet moved to its account."""
     first, nxt = month_bounds(month or date.today())
     assigned = db.scalar(
@@ -332,10 +341,10 @@ class _FundTotals(NamedTuple):
     them separately was wasteful.
     """
 
-    balance: Decimal      # everything through the end of the month
-    carried_in: Decimal   # everything before the month started
-    net_flow: Decimal     # signed spending within the month (negative when spent)
-    assigned: Decimal     # assignments within the month
+    balance: Decimal  # everything through the end of the month
+    carried_in: Decimal  # everything before the month started
+    net_flow: Decimal  # signed spending within the month (negative when spent)
+    assigned: Decimal  # assignments within the month
 
 
 _NO_ACTIVITY = _FundTotals(Decimal("0"), Decimal("0"), Decimal("0"), Decimal("0"))

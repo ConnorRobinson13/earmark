@@ -17,6 +17,7 @@ to exercise.
 `Decimal`, which pydantic renders as JSON strings, because a projected balance
 rounded through a float is a wrong number on someone's screen.
 """
+
 from __future__ import annotations
 
 from datetime import date, timedelta
@@ -27,8 +28,8 @@ from pydantic import BaseModel, Field
 
 from ..month import clamp_day_to_month, first_of_month, last_day_of_month
 
-
 # ---------- Inputs ----------
+
 
 class Payday(BaseModel):
     """One recurring payday.
@@ -77,6 +78,7 @@ class CashflowInputs(BaseModel):
 
 
 # ---------- The plan ----------
+
 
 class CashflowEvent(BaseModel):
     """Money moving on a day. Signed: income adds, an outflow subtracts."""
@@ -150,7 +152,9 @@ def project(inputs: CashflowInputs) -> CashflowPlan:
     # Anchor: pick the balance carried into the start of the span so that the
     # running balance on `today` lands exactly on current liquid cash.
     #   balance(today) = span_start + Σ(events dated ≤ today)  ==  liquid_cash
-    consumed = sum((e.amount for when, e in events if when <= inputs.today), Decimal("0"))
+    consumed = sum(
+        (e.amount for when, e in events if when <= inputs.today), Decimal("0")
+    )
     span_start = inputs.liquid_cash - consumed
 
     # Walk the whole span day by day — the months before the selected one only
@@ -223,7 +227,9 @@ def _events(inputs: CashflowInputs) -> list[tuple[date, CashflowEvent]]:
             events.append(
                 (
                     clamp_day_to_month(fund.due_day, m.month),
-                    CashflowEvent(kind="outflow", label=fund.name, amount=-fund.assigned),
+                    CashflowEvent(
+                        kind="outflow", label=fund.name, amount=-fund.assigned
+                    ),
                 )
             )
     events.sort(key=lambda dated: dated[0])
@@ -241,5 +247,7 @@ def _payday_deposits(
     """
     fixed_total = sum((p.amount for p in paydays if p.amount is not None), Decimal("0"))
     split_count = sum(1 for p in paydays if p.amount is None)
-    split_each = (planned_income - fixed_total) / split_count if split_count else Decimal("0")
+    split_each = (
+        (planned_income - fixed_total) / split_count if split_count else Decimal("0")
+    )
     return [(p, p.amount if p.amount is not None else split_each) for p in paydays]

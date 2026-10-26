@@ -10,6 +10,7 @@ The goal's fund balance is untouched (it was already credited by the assignment)
 `goals_saved_in_month` reads from settlements, so the dashboard's "Saved" tile
 only counts money that's been physically moved.
 """
+
 from datetime import date
 from decimal import Decimal
 
@@ -48,7 +49,10 @@ def list_pending(month: str | None = None, db: Session = Depends(get_db)):
     month_date = parse_month_or_current(month)
 
     first_checking = db.scalar(
-        select(Account).where(Account.type == AccountType.checking).order_by(Account.id).limit(1)
+        select(Account)
+        .where(Account.type == AccountType.checking)
+        .order_by(Account.id)
+        .limit(1)
     )
     suggested_from = first_checking.id if first_checking else None
 
@@ -58,22 +62,28 @@ def list_pending(month: str | None = None, db: Session = Depends(get_db)):
     # this caller narrows by, and it narrows the loaded list rather than the
     # query — a month's funds are few, and a `kind=` argument on the predicate
     # would be one every other caller passes nothing to.
-    goals = [f for f in active_funds_in_month(db, month_date) if f.kind == FundKind.goal]
+    goals = [
+        f for f in active_funds_in_month(db, month_date) if f.kind == FundKind.goal
+    ]
 
     items: list[ToMoveItem] = []
     for g in goals:
         pending = goal_pending_settlement(db, g.id, month_date)
         if pending <= 0:
             continue
-        to_acct = db.get(Account, g.backed_by_account_id) if g.backed_by_account_id else None
-        items.append(ToMoveItem(
-            goal_id=g.id,
-            goal_name=g.name,
-            pending_amount=pending,
-            to_account_id=to_acct.id if to_acct else None,
-            to_account_name=to_acct.name if to_acct else None,
-            suggested_from_account_id=suggested_from,
-        ))
+        to_acct = (
+            db.get(Account, g.backed_by_account_id) if g.backed_by_account_id else None
+        )
+        items.append(
+            ToMoveItem(
+                goal_id=g.id,
+                goal_name=g.name,
+                pending_amount=pending,
+                to_account_id=to_acct.id if to_acct else None,
+                to_account_name=to_acct.name if to_acct else None,
+                suggested_from_account_id=suggested_from,
+            )
+        )
     return items
 
 
@@ -96,7 +106,7 @@ def settle_goal(goal_id: int, body: SettleBody, db: Session = Depends(get_db)):
             from_account_id=body.from_account_id,
         )
     except ValueError as e:
-        raise HTTPException(400, str(e))
+        raise HTTPException(400, str(e)) from e
 
     # Read the row before committing — commit expires it, and re-reading these
     # few fields would cost another SELECT.

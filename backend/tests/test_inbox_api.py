@@ -6,13 +6,13 @@ holds cannot be posted again; production hit exactly that and answered the user
 with a 500. These tests pin the rule the handler owns instead: approving an
 inbox item leaves one ledger row for its Plaid id, tagged to the chosen fund.
 """
+
 from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
 
 import pytest
-
 from app import db as db_module
 from app.models import InboxStatus, PlaidInbox
 
@@ -133,12 +133,15 @@ def test_approving_an_item_that_is_not_pending_is_a_404(client, db):
     inbox_id = stage_inbox_item(db)
     client.post(f"/inbox/{inbox_id}/approve", json={"fund_id": fund_id})
 
-    assert client.post(
-        f"/inbox/{inbox_id}/approve", json={"fund_id": fund_id}
-    ).status_code == 404
+    assert (
+        client.post(f"/inbox/{inbox_id}/approve", json={"fund_id": fund_id}).status_code
+        == 404
+    )
 
 
-def test_losing_a_race_to_post_the_plaid_id_adopts_instead_of_500ing(client, db, monkeypatch):
+def test_losing_a_race_to_post_the_plaid_id_adopts_instead_of_500ing(
+    client, db, monkeypatch
+):
     """The ledger lookup is a read: another approve of the same Plaid id can post
     between it and the insert, and the unique index rejects the loser. Blinding
     the first lookup reproduces that stale read — the request has to roll back

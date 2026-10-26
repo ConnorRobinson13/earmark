@@ -6,12 +6,12 @@ deflate the result into today's dollars, the other did neither. So the cases
 that separate the two versions — escalation and deflation — are pinned here,
 along with the degenerate ones that used to be nobody's job to think about.
 """
+
 from __future__ import annotations
 
 from decimal import Decimal
 
 import pytest
-
 from app.services.retirement import ProjectionParams, project
 
 
@@ -111,8 +111,8 @@ def test_inflation_deflates_the_series_into_todays_dollars():
     assert [pt.nominal for pt in p.series] == [Decimal("1000.00")] * 3
     assert [pt.real for pt in p.series] == [
         Decimal("1000.00"),
-        Decimal("909.09"),   # 1000 / 1.1
-        Decimal("826.45"),   # 1000 / 1.21
+        Decimal("909.09"),  # 1000 / 1.1
+        Decimal("826.45"),  # 1000 / 1.21
     ]
     assert p.final_real == Decimal("826.45")
 
@@ -153,7 +153,10 @@ def test_the_series_is_labelled_by_age_as_well_as_by_year():
     p = project(params(current_age=28, retire_age=31), Decimal("0"))
 
     assert [(pt.year, pt.age) for pt in p.series] == [
-        (0, 28), (1, 29), (2, 30), (3, 31),
+        (0, 28),
+        (1, 29),
+        (2, 30),
+        (3, 31),
     ]
 
 
@@ -177,7 +180,7 @@ def test_the_final_point_is_the_headline():
 @pytest.mark.parametrize(
     "bad",
     [
-        {"inflation_pct": Decimal("-100")},   # a zero deflator: divides by nothing
+        {"inflation_pct": Decimal("-100")},  # a zero deflator: divides by nothing
         {"monthly_contribution": Decimal("-1")},
         {"current_age": -1},
         {"retire_age": 200},
