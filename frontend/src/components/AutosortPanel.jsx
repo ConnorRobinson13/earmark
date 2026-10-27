@@ -49,7 +49,7 @@ export default function AutosortPanel() {
       setSuggestions(list)
       // Every row starts checked, but nothing is applied by opening the list —
       // the user still confirms, and can uncheck any row first.
-      setChosen(new Set(list.map(s => s.transaction_id)))
+      setChosen(new Set(list.map(s => s.inbox_id)))
     } catch (e) {
       setErr(e)
     } finally {
@@ -75,8 +75,8 @@ export default function AutosortPanel() {
   async function confirm(e) {
     e.preventDefault()
     const changes = suggestions
-      .filter(s => chosen.has(s.transaction_id))
-      .map(s => ({ transaction_id: s.transaction_id, fund_id: s.suggested_fund_id }))
+      .filter(s => chosen.has(s.inbox_id))
+      .map(s => ({ inbox_id: s.inbox_id, fund_id: s.suggested_fund_id }))
     if (changes.length === 0) return
     setBusy(true)
     setErr(null)
@@ -139,14 +139,14 @@ export default function AutosortPanel() {
               </p>
               <ul className="autosort-list">
                 {suggestions.map(s => {
-                  const on = chosen.has(s.transaction_id)
+                  const on = chosen.has(s.inbox_id)
                   return (
-                    <li key={s.transaction_id} className={`autosort-row ${on ? '' : 'off'}`}>
+                    <li key={s.inbox_id} className={`autosort-row ${on ? '' : 'off'}`}>
                       <label>
                         <input
                           type="checkbox"
                           checked={on}
-                          onChange={() => toggle(s.transaction_id)}
+                          onChange={() => toggle(s.inbox_id)}
                         />
                         <span className="as-merchant">{s.merchant || '(no merchant)'}</span>
                         <span className="as-meta">

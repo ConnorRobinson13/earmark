@@ -32,6 +32,14 @@ def list_inbox(db: Session = Depends(get_db)):
 
 @router.post("/{inbox_id}/approve", response_model=schemas.TransactionOut)
 def approve(inbox_id: int, body: schemas.InboxApprove, db: Session = Depends(get_db)):
+    return approve_item(db, inbox_id, body.fund_id, body.as_paycheck)
+
+
+def approve_item(
+    db: Session, inbox_id: int, chosen_fund_id: int | None, as_paycheck: bool
+) -> Transaction:
+    """Post one pending inbox row to the ledger. Shared by the Inbox's approve
+    route and the auto-sort confirm, so both write the ledger the same way."""
     item = db.get(PlaidInbox, inbox_id)
     if not item or item.status != InboxStatus.pending:
         raise HTTPException(404)
@@ -41,10 +49,10 @@ def approve(inbox_id: int, body: schemas.InboxApprove, db: Session = Depends(get
     # Income + as_paycheck → land in Unassigned (fund_id=NULL). Informational
     # under the planned-income model; does NOT bump Unassigned because Unassigned
     # is computed from planned_income minus assignments, not from received cash.
-    if is_income and body.as_paycheck:
+    if is_income and as_paycheck:
         fund_id = None
     else:
-        fund_id = body.fund_id or item.suggested_fund_id
+        fund_id = chosen_fund_id or item.suggested_fund_id
         if fund_id is None:
             raise HTTPException(400, "no fund chosen and no suggestion available")
 

@@ -1,12 +1,11 @@
-"""AI-assisted transaction auto-sorting via OpenRouter.
+"""AI-assisted auto-sorting of the pending inbox via OpenRouter.
 
-This proposes a fund for each unassigned transaction, but it never changes an
-assignment on its own. The suggest/confirm split is the safety boundary:
+This proposes a fund for each pending Plaid purchase in the inbox, but it never
+approves one on its own. The suggest/confirm split is the safety boundary:
 `suggest_assignments` is read-only and asks the model for proposals, while
-`apply_assignments` is the only writer and re-validates every fund id against
-the live funds rather than trusting whatever the model returned. A caller must
-pass an explicit list of changes to `apply_assignments`; there is no path from a
-suggestion to a write that doesn't go through that confirmation step.
+`validate_changes` checks a confirmed batch against the live funds and inbox
+rows before the router approves anything. The model's output is never trusted;
+every fund id and inbox id is re-checked here rather than taken from the reply.
 
 All OpenRouter traffic is server-side. The API key comes from the
 OPENROUTER_API_KEY environment variable (via `settings.openrouter_api_key`) and
@@ -14,9 +13,8 @@ never leaves the backend or appears in a response. When the key is absent the
 feature reports itself unavailable and no outbound request is made — callers get
 `AutosortDisabled`, not a half-working feature.
 
-Only the fund assignment changes. `apply_assignments` touches `fund_id` and
-nothing else, so a transaction's amount, date, merchant and Plaid id are
-preserved exactly as posted.
+Only purchases are sorted. Income in the inbox is left alone: paychecks land in
+Unassigned under the planned-income model, not in a fund.
 """
 
 from __future__ import annotations
@@ -31,15 +29,15 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..config import settings
-from ..models import Fund, Transaction, TxType
+from ..models import Fund, InboxStatus, PlaidInbox
 
 log = logging.getLogger(__name__)
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 # Bounds on how much we hand the model in one pass. A suggestion request is one
-# HTTP call listing this many of the oldest-unassigned transactions; the rest
-# wait for the next pass. Keeps the prompt (and the review list) a sane size.
+# HTTP call listing this many of the oldest pending purchases; the rest wait for
+# the next pass. Keeps the prompt (and the review list) a sane size.
 SUGGEST_BATCH = 50
 
 # Network timeout for the single OpenRouter call. Long enough for a cold model,
@@ -53,19 +51,19 @@ class AutosortDisabled(RuntimeError):
 
 
 class InvalidDestination(ValueError):
-    """Raised when a confirmed change names a fund that isn't a valid target."""
+    """Raised when a confirmed change names a fund or inbox row that can't be
+    approved into."""
 
 
 @dataclass(frozen=True)
 class Suggestion:
-    """A proposed fund for one unassigned transaction. Read-only; nothing has
+    """A proposed fund for one pending inbox purchase. Read-only; nothing has
     been written when this is produced."""
 
-    transaction_id: int
+    inbox_id: int
     merchant: str
     amount: Decimal
     date: object  # datetime.date; kept loose to avoid importing for a hint
-    current_fund_id: int | None
     suggested_fund_id: int
     suggested_fund_name: str
 
@@ -83,37 +81,33 @@ def _valid_funds(db: Session) -> dict[int, str]:
     return {f.id: f.name for f in funds}
 
 
-def _unassigned_expenses(db: Session, limit: int) -> list[Transaction]:
-    """Expenses that never landed in a fund — the rows worth sorting.
-
-    Income left in Unassigned is deliberate (paychecks under the planned-income
-    model) and transfers/assignments carry their own funds, so an expense with a
-    NULL fund is the orphan this feature exists to clear. Oldest first: the long
-    tail of un-sorted history is the point, not today's latest swipe.
-    """
+def _pending_purchases(db: Session, limit: int) -> list[PlaidInbox]:
+    """Pending inbox rows that are purchases — the queue worth sorting. Plaid
+    signs purchases positive, so a negative amount is income and is skipped.
+    Oldest first: the backlog is the point, not today's latest swipe."""
     return db.scalars(
-        select(Transaction)
-        .where(Transaction.fund_id.is_(None), Transaction.type == TxType.expense)
-        .order_by(Transaction.date.asc(), Transaction.id.asc())
+        select(PlaidInbox)
+        .where(PlaidInbox.status == InboxStatus.pending, PlaidInbox.amount > 0)
+        .order_by(PlaidInbox.date.asc(), PlaidInbox.id.asc())
         .limit(limit)
     ).all()
 
 
-def _build_prompt(txns: list[Transaction], funds: dict[int, str]) -> str:
+def _build_prompt(items: list[PlaidInbox], funds: dict[int, str]) -> str:
     fund_lines = "\n".join(f"- {fid}: {name}" for fid, name in funds.items())
-    txn_lines = "\n".join(
-        f"- {t.id}: merchant={t.merchant!r} amount=${abs(t.amount)} date={t.date.isoformat()}"
-        for t in txns
+    item_lines = "\n".join(
+        f"- {i.id}: merchant={i.merchant!r} amount=${abs(i.amount)} date={i.date.isoformat()}"
+        for i in items
     )
     return (
         "You are sorting bank transactions into budget funds. For each "
         "transaction, pick the single best-matching fund ID from the list, or "
         "null if none fit.\n\n"
         f"Funds:\n{fund_lines}\n\n"
-        f"Transactions:\n{txn_lines}\n\n"
+        f"Transactions:\n{item_lines}\n\n"
         "Respond with JSON only, an array of objects: "
-        '[{"transaction_id": <id>, "fund_id": <id or null>}]. '
-        "Only use transaction IDs and fund IDs from the lists above."
+        '[{"inbox_id": <id>, "fund_id": <id or null>}]. '
+        "Only use inbox IDs and fund IDs from the lists above."
     )
 
 
@@ -144,7 +138,7 @@ def _chat(prompt: str) -> str:
 
 
 def _parse_pairs(text_out: str) -> list[tuple[int, int | None]]:
-    """Pull (transaction_id, fund_id) pairs out of the model's reply.
+    """Pull (inbox_id, fund_id) pairs out of the model's reply.
 
     Lenient about surrounding prose — extracts the first JSON array — but strict
     about shape: anything that isn't an object with integer ids (fund_id may be
@@ -165,59 +159,58 @@ def _parse_pairs(text_out: str) -> list[tuple[int, int | None]]:
     for item in parsed:
         if not isinstance(item, dict):
             continue
-        tid = item.get("transaction_id")
+        iid = item.get("inbox_id")
         fid = item.get("fund_id")
         # Reject bools (an int subclass) and non-ints outright.
-        if not isinstance(tid, int) or isinstance(tid, bool):
+        if not isinstance(iid, int) or isinstance(iid, bool):
             continue
         if fid is not None and (not isinstance(fid, int) or isinstance(fid, bool)):
             continue
-        pairs.append((tid, fid))
+        pairs.append((iid, fid))
     return pairs
 
 
 def suggest_assignments(db: Session, *, limit: int = SUGGEST_BATCH) -> list[Suggestion]:
-    """Ask the model to sort the unassigned expenses. Read-only.
+    """Ask the model to sort the pending inbox purchases. Read-only.
 
-    Returns one `Suggestion` per transaction the model matched to a *valid*
-    active fund. A pairing is discarded — never surfaced — when the transaction
-    isn't one we actually offered, the fund id isn't a current valid fund, or the
-    model declined (fund_id null). Nothing is written here; the returned list is
-    a proposal for the caller to confirm.
+    Returns one `Suggestion` per inbox row the model matched to a *valid* active
+    fund. A pairing is discarded — never surfaced — when the row isn't one we
+    actually offered, the fund id isn't a current valid fund, or the model
+    declined (fund_id null). Nothing is written here; the returned list is a
+    proposal for the caller to confirm.
     """
     if not autosort_available():
         raise AutosortDisabled("OPENROUTER_API_KEY is not set")
 
     funds = _valid_funds(db)
-    txns = _unassigned_expenses(db, limit)
-    if not funds or not txns:
+    items = _pending_purchases(db, limit)
+    if not funds or not items:
         return []
 
-    by_id = {t.id: t for t in txns}
-    text_out = _chat(_build_prompt(txns, funds))
+    by_id = {i.id: i for i in items}
+    text_out = _chat(_build_prompt(items, funds))
 
     suggestions: list[Suggestion] = []
     seen: set[int] = set()
-    for tid, fid in _parse_pairs(text_out):
+    for iid, fid in _parse_pairs(text_out):
         if fid is None:
             continue
-        t = by_id.get(tid)
-        if t is None or tid in seen:
-            # Hallucinated or duplicated a transaction id — not one we offered.
+        i = by_id.get(iid)
+        if i is None or iid in seen:
+            # Hallucinated or duplicated an inbox id — not one we offered.
             continue
         if fid not in funds:
             # Named a fund that isn't a valid destination. Drop it; we do not
             # fall back to a guess, because an unvalidated assignment is exactly
             # what the confirmation step exists to prevent.
             continue
-        seen.add(tid)
+        seen.add(iid)
         suggestions.append(
             Suggestion(
-                transaction_id=t.id,
-                merchant=t.merchant,
-                amount=t.amount,
-                date=t.date,
-                current_fund_id=t.fund_id,
+                inbox_id=i.id,
+                merchant=i.merchant,
+                amount=i.amount,
+                date=i.date,
                 suggested_fund_id=fid,
                 suggested_fund_name=funds[fid],
             )
@@ -225,31 +218,30 @@ def suggest_assignments(db: Session, *, limit: int = SUGGEST_BATCH) -> list[Sugg
     return suggestions
 
 
-def apply_assignments(db: Session, changes: list[tuple[int, int]]) -> list[Transaction]:
-    """Apply confirmed (transaction_id, fund_id) assignments. The only writer.
+def validate_changes(
+    db: Session, changes: list[tuple[int, int]]
+) -> list[tuple[int, int]]:
+    """Check confirmed (inbox_id, fund_id) pairs before anything is approved.
 
-    Validates every change against the live funds *before* mutating anything, so
-    a single bad destination aborts the whole batch and leaves the ledger
-    untouched — there is no partially-applied state. Only `fund_id` is set; the
-    amount, date, merchant and Plaid id are preserved exactly as posted.
+    Every pair is checked against the live funds and the live inbox *before* the
+    caller approves any of them, so a single bad row or destination aborts the
+    whole batch and leaves the ledger untouched. Returns the pairs unchanged so
+    the caller can approve them in order.
     """
     if not changes:
         return []
 
     funds = _valid_funds(db)
-
-    # Validate first, mutate second: resolve every row and reject any invalid
-    # fund or missing transaction before a single assignment is written.
-    resolved: list[tuple[Transaction, int]] = []
-    for tid, fid in changes:
-        if fid not in funds:
-            raise InvalidDestination(f"fund {fid} is not a valid destination")
-        t = db.get(Transaction, tid)
-        if t is None:
-            raise InvalidDestination(f"transaction {tid} does not exist")
-        resolved.append((t, fid))
-
-    for t, fid in resolved:
-        t.fund_id = fid
-    db.flush()
-    return [t for t, _ in resolved]
+    seen: set[int] = set()
+    for inbox_id, fund_id in changes:
+        if inbox_id in seen:
+            raise InvalidDestination(f"inbox item {inbox_id} is listed twice")
+        seen.add(inbox_id)
+        if fund_id not in funds:
+            raise InvalidDestination(f"fund {fund_id} is not a valid destination")
+        item = db.get(PlaidInbox, inbox_id)
+        if item is None or item.status != InboxStatus.pending:
+            raise InvalidDestination(f"inbox item {inbox_id} is not pending")
+        if item.amount <= 0:
+            raise InvalidDestination(f"inbox item {inbox_id} is income, not a purchase")
+    return changes

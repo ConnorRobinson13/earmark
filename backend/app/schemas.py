@@ -235,14 +235,13 @@ class AutosortStatus(BaseModel):
 
 
 class AutosortSuggestion(BaseModel):
-    """A proposed fund for one unassigned transaction. Advisory only — no
-    assignment changes until the caller confirms it."""
+    """A proposed fund for one pending inbox purchase. Advisory only — nothing is
+    approved until the caller confirms it."""
 
-    transaction_id: int
+    inbox_id: int
     merchant: str
     amount: Decimal
     date: date
-    current_fund_id: int | None = None
     suggested_fund_id: int
     suggested_fund_name: str
 
@@ -252,7 +251,7 @@ class AutosortSuggestResponse(BaseModel):
 
 
 class AutosortChange(BaseModel):
-    transaction_id: int
+    inbox_id: int
     fund_id: int
 
 
