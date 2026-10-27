@@ -9,15 +9,15 @@ const FUNDS = [
   fund({ id: 2, name: 'Transport', category: 'Car' }),
 ]
 
-// An inbox item so the view renders its active card; auto-sort works on posted
-// expenses, independent of whichever inbox item is showing.
+// An inbox item so the view renders its active card; auto-sort works on pending
+// purchases, independent of whichever inbox item is showing.
 const ITEMS = [
   { id: 11, merchant: 'Trader Joes', amount: '43.10', date: '2026-08-01', suggested_fund_id: 1, status: 'pending', created_at: '2026-08-01T10:00:00' },
 ]
 
 const SUGGESTIONS = [
-  { transaction_id: 101, merchant: 'Whole Foods', amount: '55.00', date: '2026-07-01', current_fund_id: null, suggested_fund_id: 1, suggested_fund_name: 'Groceries' },
-  { transaction_id: 102, merchant: 'Shell', amount: '40.00', date: '2026-07-02', current_fund_id: null, suggested_fund_id: 2, suggested_fund_name: 'Transport' },
+  { inbox_id: 101, merchant: 'Whole Foods', amount: '55.00', date: '2026-07-01', suggested_fund_id: 1, suggested_fund_name: 'Groceries' },
+  { inbox_id: 102, merchant: 'Shell', amount: '40.00', date: '2026-07-02', suggested_fund_id: 2, suggested_fund_name: 'Transport' },
 ]
 
 function routes(overrides = {}) {
@@ -79,7 +79,7 @@ describe('Auto-sort review', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Confirm/ }))
 
     await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1))
-    expect(confirm).toHaveBeenCalledWith([{ transaction_id: 101, fund_id: 1 }])
+    expect(confirm).toHaveBeenCalledWith([{ inbox_id: 101, fund_id: 1 }])
     // The modal closes and a result line is shown.
     await waitFor(() => expect(screen.queryByText('Whole Foods')).toBeNull())
     expect(screen.getByText(/Assigned 1 transaction\./)).toBeTruthy()
