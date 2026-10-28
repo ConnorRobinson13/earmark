@@ -256,7 +256,7 @@ def test_suggestions_only_cover_pending_purchases(client, openrouter):
     )
 
     body = client.post("/autosort/suggestions").json()["suggestions"]
-    assert {s["inbox_id"] for s in body} == {ids["item_a"]}
+    assert {s["inbox_id"] for s in body} == {ids["item_a"], ids["item_b"]}
 
     prompt = openrouter.calls[0]["json"]["messages"][0]["content"]
     assert "Trader Joe's" in prompt and "Shell" in prompt
@@ -285,15 +285,55 @@ def test_invalid_model_output_is_dropped_not_approved(client, openrouter):
             "date": "2026-03-01",
             "suggested_fund_id": ids["fuel"],
             "suggested_fund_name": "Fuel",
-        }
+        },
+        # Shell's only proposal was invalid, so it is listed with no fund for the
+        # reviewer to choose, rather than being dropped or guessed at.
+        {
+            "inbox_id": ids["item_b"],
+            "merchant": "Shell",
+            "amount": "30.00",
+            "date": "2026-03-02",
+            "suggested_fund_id": None,
+            "suggested_fund_name": None,
+        },
     ]
 
 
-def test_malformed_model_output_yields_no_suggestions(client, openrouter):
-    """Not JSON, null fund ids and non-integer ids all come back empty, not crash."""
-    _seed()
+def test_malformed_model_output_leaves_every_row_without_a_fund(client, openrouter):
+    """Not JSON yields the offered rows with no fund, not a crash or a guess."""
+    ids = _seed()
     openrouter.content = "the model forgot to answer in JSON"
-    assert client.post("/autosort/suggestions").json()["suggestions"] == []
+    body = client.post("/autosort/suggestions").json()["suggestions"]
+    assert {s["inbox_id"] for s in body} == {ids["item_a"], ids["item_b"]}
+    assert all(s["suggested_fund_id"] is None for s in body)
+
+
+def test_declined_rows_are_listed_without_a_fund(client, openrouter):
+    """The model saying null is a decline, not an error: the row still shows up
+    so it can be assigned by hand."""
+    ids = _seed()
+    openrouter.content = json.dumps(
+        [
+            {"inbox_id": ids["item_a"], "fund_id": None},
+            {"inbox_id": ids["item_b"], "fund_id": ids["fuel"]},
+        ]
+    )
+    body = client.post("/autosort/suggestions").json()["suggestions"]
+    by_id = {s["inbox_id"]: s for s in body}
+    assert by_id[ids["item_a"]]["suggested_fund_id"] is None
+    assert by_id[ids["item_b"]]["suggested_fund_id"] == ids["fuel"]
+
+
+def test_a_row_with_no_fund_can_be_confirmed_once_a_fund_is_chosen(client, openrouter):
+    """Confirm still requires a fund, so a hand-picked fund goes through the same
+    validation as a suggested one."""
+    ids = _seed()
+    resp = client.post(
+        "/autosort/confirm",
+        json={"changes": [{"inbox_id": ids["item_b"], "fund_id": ids["fuel"]}]},
+    )
+    assert resp.status_code == 200, resp.text
+    assert _status_of(ids["item_b"]) == InboxStatus.approved
 
 
 # --------------------------------------------------------------------------
