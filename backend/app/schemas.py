@@ -242,8 +242,10 @@ class AutosortSuggestion(BaseModel):
     merchant: str
     amount: Decimal
     date: date
-    suggested_fund_id: int
-    suggested_fund_name: str
+    suggested_fund_id: int | None = (
+        None  # None: no fund proposed, the reviewer picks one
+    )
+    suggested_fund_name: str | None = None
 
 
 class AutosortSuggestResponse(BaseModel):

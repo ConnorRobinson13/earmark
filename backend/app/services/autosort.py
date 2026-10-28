@@ -64,8 +64,8 @@ class Suggestion:
     merchant: str
     amount: Decimal
     date: object  # datetime.date; kept loose to avoid importing for a hint
-    suggested_fund_id: int
-    suggested_fund_name: str
+    suggested_fund_id: int | None  # None when the model declined or named no valid fund
+    suggested_fund_name: str | None
 
 
 def autosort_available() -> bool:
@@ -173,49 +173,52 @@ def _parse_pairs(text_out: str) -> list[tuple[int, int | None]]:
 def suggest_assignments(db: Session, *, limit: int = SUGGEST_BATCH) -> list[Suggestion]:
     """Ask the model to sort the pending inbox purchases. Read-only.
 
-    Returns one `Suggestion` per inbox row the model matched to a *valid* active
-    fund. A pairing is discarded — never surfaced — when the row isn't one we
-    actually offered, the fund id isn't a current valid fund, or the model
-    declined (fund_id null). Nothing is written here; the returned list is a
-    proposal for the caller to confirm.
+    Returns one `Suggestion` for every pending purchase offered to the model, in
+    queue order. A row the model matched to a *valid* active fund carries that
+    fund. A row it declined, or named a fund that isn't valid, or that it didn't
+    mention at all, comes back with no fund: the reviewer picks one by hand. A
+    model pairing is never trusted for a row we didn't offer. Nothing is written
+    here; the returned list is a proposal for the caller to review and confirm.
     """
     if not autosort_available():
         raise AutosortDisabled("OPENROUTER_API_KEY is not set")
 
     funds = _valid_funds(db)
     items = _pending_purchases(db, limit)
-    if not funds or not items:
+    if not items:
         return []
+    if not funds:
+        return [_suggestion(i, None, funds) for i in items]
 
-    by_id = {i.id: i for i in items}
     text_out = _chat(_build_prompt(items, funds))
 
-    suggestions: list[Suggestion] = []
-    seen: set[int] = set()
+    offered = {i.id for i in items}
+    picked: dict[int, int] = {}
     for iid, fid in _parse_pairs(text_out):
-        if fid is None:
-            continue
-        i = by_id.get(iid)
-        if i is None or iid in seen:
-            # Hallucinated or duplicated an inbox id — not one we offered.
+        if fid is None or iid not in offered or iid in picked:
+            # Declined, hallucinated, or a duplicate — leave the row unassigned.
             continue
         if fid not in funds:
             # Named a fund that isn't a valid destination. Drop it; we do not
             # fall back to a guess, because an unvalidated assignment is exactly
             # what the confirmation step exists to prevent.
             continue
-        seen.add(iid)
-        suggestions.append(
-            Suggestion(
-                inbox_id=i.id,
-                merchant=i.merchant,
-                amount=i.amount,
-                date=i.date,
-                suggested_fund_id=fid,
-                suggested_fund_name=funds[fid],
-            )
-        )
-    return suggestions
+        picked[iid] = fid
+
+    return [_suggestion(i, picked.get(i.id), funds) for i in items]
+
+
+def _suggestion(
+    item: PlaidInbox, fund_id: int | None, funds: dict[int, str]
+) -> Suggestion:
+    return Suggestion(
+        inbox_id=item.id,
+        merchant=item.merchant,
+        amount=item.amount,
+        date=item.date,
+        suggested_fund_id=fund_id,
+        suggested_fund_name=funds[fund_id] if fund_id is not None else None,
+    )
 
 
 def validate_changes(
